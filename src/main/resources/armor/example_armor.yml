@@ -1,0 +1,47 @@
+# 盔甲套装示例（底层框架演示，尚未绑定盔甲技能）
+# 集齐整套四件（头盔+胸甲+护腿+靴子）后，set-bonus 中的被动加成自动生效：
+#   吸血 / 反伤（百分比 + 固定值）/ 增伤倍率 / 减伤
+id: example_armor
+display-name: "&6骑士战甲"
+description: "&7集齐四件后获得被动加成"
+helmet:
+  material: NETHERITE_HELMET
+  display-name: "&6骑士头盔"
+  custom-model-data: 0
+  unbreakable: false
+  # 每件可写不同 CraftEngine 模型 ID（留空 = 用 material + custom-model-data）
+  craftengine_model: ""
+  lore:
+    - "&7骑士套装 · 头盔"
+    - "&7集齐四件后加成生效"
+chestplate:
+  material: NETHERITE_CHESTPLATE
+  display-name: "&6骑士胸甲"
+  custom-model-data: 0
+  unbreakable: false
+  craftengine_model: ""
+  lore:
+    - "&7骑士套装 · 胸甲"
+leggings:
+  material: NETHERITE_LEGGINGS
+  display-name: "&6骑士护腿"
+  custom-model-data: 0
+  unbreakable: false
+  craftengine_model: ""
+  lore:
+    - "&7骑士套装 · 护腿"
+boots:
+  material: NETHERITE_BOOTS
+  display-name: "&6骑士靴子"
+  custom-model-data: 0
+  unbreakable: false
+  craftengine_model: ""
+  lore:
+    - "&7骑士套装 · 靴子"
+# 集齐整套后的被动加成（只写需要覆盖的键，缺失键会自动补全）
+set-bonus:
+  lifesteal: 0.1          # 造成伤害的 10% 吸血
+  reflect-percent: 0.15   # 受到伤害的 15% 反弹
+  reflect-flat: 1.0       # 额外固定反弹伤害
+  damage-multiplier: 1.1  # 造成伤害 x1.1
+  damage-reduction: 0.1   # 受到伤害减免 10%

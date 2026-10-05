@@ -32,8 +32,11 @@ target-filter:
   pvp-blocked-worlds: []
 
 # 冷却显示/提示设置
-# 注意：技能冷却时长在 skills/<id>.yml 的 stats.cooldown 里设置，
-#       也可用游戏内命令 /sc cooldown <weaponId> <秒> 快速修改（会写回文件并重载）。
+# 注意：技能冷却时长在 skills/<id>.yml 里设置：
+#   stats.cooldown        左右键共用的默认冷却
+#   stats.cooldown-left   左键技能冷却（不写则回退 cooldown）
+#   stats.cooldown-right  右键技能冷却（不写则回退 cooldown）
+#   也可用 /sc cooldown <weaponId> <秒> [left|right|all] 快速修改（会写回文件并重载）。
 cooldown:
   action-bar: true
   boss-bar: false

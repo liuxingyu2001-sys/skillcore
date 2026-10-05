@@ -125,8 +125,12 @@ public final class WeaponManager {
         }
 
         // 4. 冷却启动（松开 Shift 不启动冷却）
-        if (startsCooldown(trigger) && !bypass && weapon.stats().cooldown() > 0) {
-            CooldownUtils.start(player.getUniqueId(), cdKey, weapon.stats().cooldown());
+        // 左键技能走 cooldown-left，右键/双击/按住/松开走 cooldown-right，未配置时回退 cooldown
+        if (startsCooldown(trigger) && !bypass) {
+            double cd = cooldownFor(weapon.stats(), trigger);
+            if (cd > 0) {
+                CooldownUtils.start(player.getUniqueId(), cdKey, cd);
+            }
         }
 
         if (debug) {
@@ -205,6 +209,18 @@ public final class WeaponManager {
 
     private String cooldownKey(String weaponId, SkillTrigger trigger) {
         return "weapon:" + weaponId + ":" + trigger.name();
+    }
+
+    /**
+     * 按触发键取对应技能的冷却秒数。
+     * <p>
+     * 左键（含 Shift+左键）走 {@code cooldown-left}，其余触发
+     * （右键 / Shift+右键 / 双击 / 按住 / 松开）走 {@code cooldown-right}；
+     * 未单独配置时回退到统一 {@code cooldown}。
+     */
+    private double cooldownFor(WeaponStats stats, SkillTrigger trigger) {
+        boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
+        return leftClick ? stats.cooldownLeft() : stats.cooldownRight();
     }
 
     /**
@@ -305,6 +321,47 @@ public final class WeaponManager {
                         player.getInventory().getItemInMainHand(),
                         false, false);
                 skill.onDamaged(ctx, attacker, damage);
+            }
+        });
+    }
+
+    /**
+     * 普通近战命中时通知武器技能（命中附带效果，如日炎之剑）。
+     * 调用方（CombatListener）会跳过技能伤害，避免技能命中重复触发。
+     */
+    public void notifyHit(Player player, LivingEntity victim, double damage) {
+        String weaponId = WeaponItems.getHeldWeaponId(
+                com.skillcore.SkillCorePlugin.getInstance(), player);
+        if (weaponId == null) return;
+        registry.getEntry(weaponId).ifPresent(entry -> {
+            WeaponSkill skill = entry.skill() != null ? entry.skill() : entry.leftSkill();
+            if (skill != null) {
+                WeaponContext ctx = new WeaponContext(
+                        player, entry.weapon(), victim,
+                        victim.getLocation(),
+                        player.getInventory().getItemInMainHand(),
+                        false, false);
+                skill.onHit(ctx, victim, damage);
+            }
+        });
+    }
+
+    /**
+     * 击杀时通知武器技能。
+     */
+    public void notifyKill(Player player, LivingEntity victim) {
+        String weaponId = WeaponItems.getHeldWeaponId(
+                com.skillcore.SkillCorePlugin.getInstance(), player);
+        if (weaponId == null) return;
+        registry.getEntry(weaponId).ifPresent(entry -> {
+            WeaponSkill skill = entry.skill() != null ? entry.skill() : entry.leftSkill();
+            if (skill != null) {
+                WeaponContext ctx = new WeaponContext(
+                        player, entry.weapon(), victim,
+                        victim.getLocation(),
+                        player.getInventory().getItemInMainHand(),
+                        false, false);
+                skill.onKill(ctx, victim);
             }
         });
     }

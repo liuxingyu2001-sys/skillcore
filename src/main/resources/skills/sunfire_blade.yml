@@ -1,0 +1,25 @@
+# 日炎之剑 — 普通攻击附带目标最大生命值百分比的额外伤害
+id: sunfire_blade
+display-name: "&6日炎之剑"
+description: "&7攻击附带目标最大生命值 5% 的伤害"
+material: NETHERITE_SWORD
+craftengine_model: ""
+right-skill: SUNFIRE_BLADE
+glow: true
+custom-model-data: 0
+lore:
+  - "&7右键: 强击"
+  - "&c攻击附带目标最大生命 {on-hit-percent-max}% 伤害"
+  - "&8附带间隔: {on-hit-interval}s"
+  - "&c伤害: {damage}"
+stats:
+  damage: 10
+  critical-chance: 0.15
+  critical-multiplier: 1.6
+  # 命中附带：目标最大生命 5%
+  on-hit-percent-max: 0.05
+  # 命中附带间隔（秒，0 = 每次命中都触发）
+  on-hit-interval: 0.5
+  range: 4.0
+  particle: FLAME
+  sound: ENTITY_PLAYER_ATTACK_CRIT

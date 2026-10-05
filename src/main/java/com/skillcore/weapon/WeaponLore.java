@@ -41,6 +41,10 @@ public final class WeaponLore {
                 .replace("{percent-current}", fmt(s.percentCurrentHealth() * 100))
                 .replace("{percent-missing}", fmt(s.percentMissingHealth() * 100))
 
+                // 命中附带
+                .replace("{on-hit-percent-max}", fmt(s.onHitPercentMax() * 100))
+                .replace("{on-hit-interval}", fmt(s.onHitIntervalSeconds()))
+
                 // 吸血 / 反伤
                 .replace("{lifesteal}", fmt(s.lifesteal() * 100))
                 .replace("{reflect}", fmt(s.reflectPercent() * 100))
@@ -49,6 +53,10 @@ public final class WeaponLore {
                 // 冷却 / 消耗
                 .replace("{cooldown}", fmt(s.cooldown()))
                 .replace("{cd}", fmt(s.cooldown()))
+                .replace("{cooldown-left}", fmt(s.cooldownLeft()))
+                .replace("{cd-left}", fmt(s.cooldownLeft()))
+                .replace("{cooldown-right}", fmt(s.cooldownRight()))
+                .replace("{cd-right}", fmt(s.cooldownRight()))
 
                 // 位移
                 .replace("{dash-speed}", fmt(s.dashSpeed()))

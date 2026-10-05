@@ -1,0 +1,55 @@
+# 日炎之甲 — 穿戴整套后，周围敌人每秒灼伤
+# 灼伤伤害 = sunfire-flat（固定值）+ 目标最大生命 x sunfire-percent-max（百分比）
+id: sunfire_armor
+display-name: "&6日炎之甲"
+description: "&7穿戴整套后，周围敌人每秒灼伤"
+# 绑定的盔甲技能类型（ArmorFactory 注册）
+skill: SUNFIRE
+helmet:
+  material: NETHERITE_HELMET
+  display-name: "&6日炎之盔"
+  unbreakable: true
+  # 每件可写不同 CraftEngine 模型 ID（留空 = 用 material + custom-model-data）
+  craftengine_model: ""
+  lore:
+    - "&7日炎之甲 · 头盔"
+    - "&c穿戴整套后灼烧周围敌人"
+chestplate:
+  material: NETHERITE_CHESTPLATE
+  display-name: "&6日炎之铠"
+  unbreakable: true
+  craftengine_model: ""
+  lore:
+    - "&7日炎之甲 · 胸甲"
+leggings:
+  material: NETHERITE_LEGGINGS
+  display-name: "&6日炎之腿甲"
+  unbreakable: true
+  craftengine_model: ""
+  lore:
+    - "&7日炎之甲 · 护腿"
+boots:
+  material: NETHERITE_BOOTS
+  display-name: "&6日炎之靴"
+  unbreakable: true
+  craftengine_model: ""
+  lore:
+    - "&7日炎之甲 · 靴子"
+# 集齐整套后的被动加成 + 盔甲技能专用键（sunfire-*）
+set-bonus:
+  # 灼伤：固定 1 + 目标最大生命 2%
+  sunfire-flat: 1.0
+  sunfire-percent-max: 0.02
+  # 灼伤半径（格）
+  sunfire-radius: 4.0
+  # 灼伤间隔（tick，20 = 每秒一跳）
+  sunfire-interval-ticks: 20
+  # 灼伤粒子
+  sunfire-particle: FLAME
+  # 烈焰光环（脚下粒子环，仅视觉）
+  sunfire-ring: true
+  sunfire-ring-radius: 2.0
+  sunfire-ring-y: 0.3
+  sunfire-ring-points: 32
+  sunfire-ring-interval-ticks: 5
+  sunfire-ring-particle: FLAME

@@ -16,6 +16,9 @@ import org.bukkit.entity.Player;
  *   <li>{@code %skillcore_has_weapon%}  是否手持技能武器</li>
  *   <li>{@code %skillcore_weapon_cd%}   右键技能冷却状态（就绪 / 3.2s）</li>
  *   <li>{@code %skillcore_weapon_cd_left%} / {@code _right%}</li>
+ *   <li>{@code %skillcore_armor_set%}   当前穿戴整套的盔甲套装 ID</li>
+ *   <li>{@code %skillcore_armor_set_name%} 套装显示名</li>
+ *   <li>{@code %skillcore_has_armor_set%} 是否穿戴整套</li>
  * </ul>
  */
 public final class SkillCorePlaceholders extends PlaceholderExpansion {
@@ -77,6 +80,18 @@ public final class SkillCorePlaceholders extends PlaceholderExpansion {
                         .getString("placeholders.ready", "&a就绪");
             }
             return "&e" + String.format("%.1f", remaining) + "s";
+        }
+        if (key.equals("armor_set") || key.equals("armor_set_id")) {
+            var set = plugin.getArmorManager() != null ? plugin.getArmorManager().getActiveSet(player) : null;
+            return set == null ? "" : set.id();
+        }
+        if (key.equals("armor_set_name")) {
+            var set = plugin.getArmorManager() != null ? plugin.getArmorManager().getActiveSet(player) : null;
+            return set == null ? "" : set.displayName();
+        }
+        if (key.equals("has_armor_set")) {
+            var set = plugin.getArmorManager() != null ? plugin.getArmorManager().getActiveSet(player) : null;
+            return String.valueOf(set != null);
         }
         return null;
     }

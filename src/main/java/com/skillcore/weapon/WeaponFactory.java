@@ -9,6 +9,7 @@ import com.skillcore.weapon.skills.DashDamageSkill;
 import com.skillcore.weapon.skills.LifestealStrikeSkill;
 import com.skillcore.weapon.skills.PercentStrikeSkill;
 import com.skillcore.weapon.skills.StrikeSkill;
+import com.skillcore.weapon.skills.SunfireBladeSkill;
 import com.skillcore.weapon.skills.SweepSkill;
 import com.skillcore.weapon.skills.ThornsSkill;
 import org.bukkit.Material;
@@ -61,6 +62,8 @@ public final class WeaponFactory {
         registerSkill("BLINK_BURST", w -> new BlinkBurstSkill());
         registerSkill("LIFESTEAL_STRIKE", w -> new LifestealStrikeSkill());
         registerSkill("THORNS", w -> new ThornsSkill());
+        registerSkill("SUNFIRE_BLADE", w -> new SunfireBladeSkill());
+        registerSkill("SUNFIRE_SWORD", w -> new SunfireBladeSkill());
     }
 
     /**

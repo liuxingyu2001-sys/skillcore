@@ -32,6 +32,13 @@ public final class SkillCorePlugin extends JavaPlugin {
     private WeaponManager weaponManager;
     private WeaponInputListener weaponInputListener;
     private com.skillcore.dummy.TestDummyManager testDummyManager;
+    private com.skillcore.armor.ArmorFactory armorFactory;
+    private com.skillcore.armor.ArmorRegistry armorRegistry;
+    private com.skillcore.armor.ArmorManager armorManager;
+    private com.skillcore.armor.ArmorListener armorListener;
+    private org.bukkit.scheduler.BukkitTask armorTicker;
+    private int armorTickCounter;
+    private org.bukkit.scheduler.BukkitTask cooldownCleanupTask;
 
     public static SkillCorePlugin getInstance() {
         return instance;
@@ -52,6 +59,17 @@ public final class SkillCorePlugin extends JavaPlugin {
         registerWeaponSkills();
         int weaponCount = configManager.loadWeapons(weaponFactory, weaponRegistry);
 
+        // 盔甲套装：armor/ 目录底层框架（集齐整套后被动加成生效）
+        armorFactory = new com.skillcore.armor.ArmorFactory();
+        armorFactory.autoRegister(this, com.skillcore.armor.ArmorFactory.DEFAULT_SKILL_PACKAGE);
+        armorRegistry = new com.skillcore.armor.ArmorRegistry();
+        int armorCount = configManager.loadArmors(armorFactory, armorRegistry);
+        armorManager = new com.skillcore.armor.ArmorManager(this, armorRegistry, armorFactory);
+        armorListener = new com.skillcore.armor.ArmorListener(this, armorManager);
+        getServer().getPluginManager().registerEvents(armorListener, this);
+        startArmorTicker();
+        startCooldownCleanup();
+
         // 只监听技能武器左右键 — 没有武器就没有技能
         combatListener = new CombatListener(this);
         weaponInputListener = new WeaponInputListener(this, weaponManager);
@@ -69,7 +87,39 @@ public final class SkillCorePlugin extends JavaPlugin {
         testDummyManager = new com.skillcore.dummy.TestDummyManager(this);
         getServer().getPluginManager().registerEvents(testDummyManager, this);
 
-        getLogger().info("SkillCore enabled. Skill weapons: " + weaponCount);
+        getLogger().info("SkillCore enabled. Skill weapons: " + weaponCount + ", armor sets: " + armorCount);
+    }
+
+    /**
+     * 盔甲周期任务：每 tick 派发盔甲技能 onTick，每 20 tick 兜底重算整套穿戴状态。
+     * <p>
+     * onTick 只遍历穿戴整套的玩家（activeSkills），空操作；穿戴检测通常由事件驱动，
+     * 这里仅作兜底，且 getItemMeta 前先 hasItemMeta，成本很低。
+     */
+    private void startArmorTicker() {
+        if (armorTicker != null) {
+            armorTicker.cancel();
+        }
+        armorTickCounter = 0;
+        armorTicker = getServer().getScheduler().runTaskTimer(this, () -> {
+            if (armorManager == null) {
+                return;
+            }
+            armorTickCounter++;
+            armorManager.tickAllOnline();
+            if (armorTickCounter % 20 == 0) {
+                armorManager.recomputeAllOnline();
+            }
+        }, 1L, 1L);
+    }
+
+    /** 周期清理已过期的冷却记录，避免 COOLDOWNS 无限增长。 */
+    private void startCooldownCleanup() {
+        if (cooldownCleanupTask != null) {
+            cooldownCleanupTask.cancel();
+        }
+        cooldownCleanupTask = getServer().getScheduler().runTaskTimer(this,
+                com.skillcore.utils.CooldownUtils::cleanup, 20L * 60L, 20L * 60L);
     }
 
     /**
@@ -98,6 +148,17 @@ public final class SkillCorePlugin extends JavaPlugin {
         if (weaponManager != null) {
             weaponManager.cleanup();
         }
+        if (armorTicker != null) {
+            armorTicker.cancel();
+            armorTicker = null;
+        }
+        if (cooldownCleanupTask != null) {
+            cooldownCleanupTask.cancel();
+            cooldownCleanupTask = null;
+        }
+        if (armorManager != null) {
+            armorManager.clearAll();
+        }
         com.skillcore.utils.CooldownUtils.cleanup();
         getLogger().info("SkillCore disabled.");
         instance = null;
@@ -118,9 +179,16 @@ public final class SkillCorePlugin extends JavaPlugin {
         if (weaponManager != null) {
             weaponManager.cleanup();
         }
+        if (armorManager != null) {
+            armorManager.clearAll();
+        }
         configManager.reload();
         configManager.loadWeapons(weaponFactory, weaponRegistry);
+        configManager.loadArmors(armorFactory, armorRegistry);
         weaponManager.setDebug(configManager.isDebug());
+        if (armorManager != null) {
+            armorManager.recomputeAllOnline();
+        }
         if (testDummyManager != null) {
             testDummyManager.reload();
         }
@@ -153,5 +221,17 @@ public final class SkillCorePlugin extends JavaPlugin {
 
     public com.skillcore.dummy.TestDummyManager getTestDummyManager() {
         return testDummyManager;
+    }
+
+    public com.skillcore.armor.ArmorFactory getArmorFactory() {
+        return armorFactory;
+    }
+
+    public com.skillcore.armor.ArmorRegistry getArmorRegistry() {
+        return armorRegistry;
+    }
+
+    public com.skillcore.armor.ArmorManager getArmorManager() {
+        return armorManager;
     }
 }

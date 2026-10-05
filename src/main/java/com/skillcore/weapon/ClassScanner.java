@@ -13,9 +13,9 @@ import java.util.jar.JarFile;
 
 /**
  * 包扫描工具 — 支持开发期（class 目录）与打包后（jar）两种形态。
- * 用于武器技能注解自动注册。
+ * 用于武器/盔甲技能注解自动注册。
  */
-final class ClassScanner {
+public final class ClassScanner {
 
     private ClassScanner() {
     }
@@ -23,7 +23,7 @@ final class ClassScanner {
     /**
      * 扫描指定包下的全部类。
      */
-    static List<Class<?>> scan(Plugin plugin, String packageName) {
+    public static List<Class<?>> scan(Plugin plugin, String packageName) {
         List<Class<?>> classes = new ArrayList<>();
         ClassLoader loader = plugin.getClass().getClassLoader();
         String path = packageName.replace('.', '/');

@@ -157,6 +157,8 @@ public final class WeaponItems {
      */
     public static String getWeaponId(Plugin plugin, ItemStack item) {
         if (plugin == null || item == null || item.getType() == Material.AIR) return null;
+        // 无 meta 的普通物品直接跳过，避免每次点击都克隆 ItemMeta（性能热点）
+        if (!item.hasItemMeta()) return null;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return null;
         return meta.getPersistentDataContainer().get(

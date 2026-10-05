@@ -3,7 +3,7 @@
 Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放技能。SkillCore 是唯一技能来源，没有独立的技能绑定/解锁系统。
 
 - 语言/API：Java 21（`maven.compiler.release=21`），Paper API `26.2.build.129-stable`，`api-version: '1.21'`
-- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.0.jar`）
+- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.2.jar`）
 - `groupId=com.skillcore`，`artifactId=skillcore`，主类 `com.skillcore.SkillCorePlugin`
 - 代码注释、配置注释均为中文，保持中文风格
 - 已在 Paper 26.2 服务端实机验证加载（自动注册 11 个技能类、7 把武器，含风暴战锤）
@@ -20,12 +20,14 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 
 数据流：`skills/*.yml`（每把武器一个文件） → `ConfigManager.loadWeapons` → `WeaponFactory.parse` 生成 `SkillWeapon`（外观+`WeaponStats`）并 `createSkill` 生成 `WeaponSkill` 实例 → 存入 `WeaponRegistry`。
 
+盔甲数据流：`armor/*.yml`（每套盔甲一个文件） → `ConfigManager.loadArmors` → `ArmorFactory.parse` 生成 `ArmorSet`（四件 `ArmorPiece` + `ArmorStats` 被动加成）→ 存入 `ArmorRegistry`；`ArmorManager` 检测玩家是否穿戴整套（PDC `skillcore_armor_set` / `skillcore_armor_slot`），集齐后 `CombatListener` 在战斗事件里叠加吸血/反伤/增伤/减伤。
+
 运行时：
 - `WeaponInputListener` 监听左/右键、Shift 组合、双击 Shift、按住/松开 Shift，先用 `WeaponItems.getHeldWeaponId` 校验主手是否为技能武器（PDC key `skillcore_weapon_id`），再交给 `WeaponManager.triggerHeld(player, SkillTrigger)`
 - `WeaponManager.triggerHeld`：解析左右技能 → `supportsTrigger` 检查（双击/按住/松开未实现则不触发、不进冷却）→ `cast`
 - `WeaponManager.cast`：构造 `WeaponContext` → `skill.canUse` → 冷却检查（`CooldownUtils`，`skillcore.bypass.cooldown` 可绕过）→ `dispatch` 到对应钩子 → 启动冷却（松开 Shift 不启动）
 - `WeaponContext` 是写技能的主入口，封装伤害（吃暴击/穿透/百分比，统一走 `SkillDamageUtils`）、吸血、位移、击退、控制、粒子/音效，全部从 `ctx.stats()` 读数值
-- `CombatListener` 处理吸血/反伤等战斗事件（`onHit`/`onKill`/`onDamaged` 回调）
+- `CombatListener` 处理吸血/反伤等战斗事件，并派发 `onHit`（普通近战命中，跳过技能伤害）/ `onKill`（击杀）/ `onDamaged`（受击反伤）回调到手持武器技能
 
 关键文件：
 - `src/main/java/com/skillcore/SkillCorePlugin.java` — 入口，onEnable 注册事件/自动扫描技能/占位符/假人模块
@@ -36,8 +38,9 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - `WeaponItems` / `WeaponLore` — 物品构建、PDC 识别、lore 变量替换
   - `WeaponRegistry` / `WeaponManager` — 注册表、释放流程、生命周期清理
   - `ClassScanner` — 注解扫描（支持 class 目录与 jar）
-- `src/main/java/com/skillcore/weapon/skills/` — 内置技能实现（每个类一个 `@WeaponSkillInfo`）；`StormHammerFx` 是风暴战锤专属分阶段特效
-- `src/main/java/com/skillcore/config/` — `ConfigManager`（config.yml + skills/ 目录加载与轮询）
+- `src/main/java/com/skillcore/weapon/skills/` — 内置技能实现（每个类一个 `@WeaponSkillInfo`）；`StormHammerFx` 是风暴战锤专属分阶段特效，`SunfireBladeSkill` 是日炎之剑（命中附带最大生命百分比）
+- `src/main/java/com/skillcore/armor/` — 盔甲套装框架：`ArmorSlot`/`ArmorPiece`/`ArmorSet`/`ArmorStats`、`ArmorItems`（PDC 构建/识别）、`ArmorFactory`/`ArmorRegistry`/`ArmorManager`/`ArmorListener`、`ArmorSkill`/`ArmorContext`（盔甲技能接口）；`annotation/` 为 `@ArmorSkillInfo` 注解；`skills/` 下为盔甲技能实现（`SunfireArmorSkill` 日炎之甲）
+- `src/main/java/com/skillcore/config/` — `ConfigManager`（config.yml + skills/ + armor/ 目录加载与轮询 + 缺失配置键自动补全）
 - `src/main/java/com/skillcore/dummy/TestDummyManager.java` — 测试假人模块
 - `src/main/java/com/skillcore/hook/SkillCorePlaceholders.java` — PlaceholderAPI 占位符（PAPI 未安装时自动跳过）
 - `src/main/java/com/skillcore/hook/CraftEngineHook.java` — CraftEngine 模型软依赖（反射调用）
@@ -46,7 +49,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `src/main/java/com/skillcore/utils/ParticleUtils.java` — 粒子绘制工具（点/线/环/球/立方/锥/螺旋/光束/闪电）
 - `src/main/java/com/skillcore/utils/TextUtils.java` — MiniMessage 与 `&` 颜色码混合解析（显示名/lore 用）
 - `src/main/java/com/skillcore/utils/VulcanHelper.java` — Vulcan 反作弊移动检测 VL 清零（反射软依赖，未装则空操作）
-- `src/main/java/com/skillcore/command/SkillCoreCommand.java` — `/sc give|weapons|info|updatelore|cooldown|testdummy|reload`
+- `src/main/java/com/skillcore/command/SkillCoreCommand.java` — `/sc give|weapons|info|updatelore|cooldown|armor|armors|testdummy|reload`
 - `src/main/java/com/skillcore/utils/` — 通用工具（`TargetFilter`/`SkillDamageUtils`/伤害/吸血/位移/瞄准/粒子/音效等）
 
 ## 添加一把新技能武器（注解自动注册）
@@ -60,7 +63,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 ### 硬性约定
 
 - 技能逻辑里**不要硬编码数值**（伤害/冷却/位移/范围/特效等），一律从 `ctx.stats()` 读，方便 `skills/*.yml` 调平衡
-- 新增数值字段时同步改 `WeaponStats` 的字段、getter、`fromConfig`、`copy` 四处；**不再自动向每个文件填充默认键**，每个技能文件只写自己用到的键
+- 新增数值字段时同步改 `WeaponStats` 的字段、getter、`fromConfig`、`copy`（如需补全再加 `defaults`）四处；**缺失配置键会在加载时自动补全写回文件**（文本级插入，保留注释；内容键 lore/enchantments/right-skill/left-skill 无默认值不强制写入）
 - 玩家来源技能伤害必须走 `ctx.damage(...)` / `SkillDamageUtils.damage(...)`，不要直接 `target.damage(x, player)`；**吸血自动生效**：`ctx.damage*` 内部按 `stats.lifesteal()` 统一吸血，技能里无需再手动 `healSelfByDamage`
 - 所有 AOE / 射线 / 吸附 / 路径伤害必须经过 `TargetFilter`（过滤友军/宠物/NPC/盔甲架/同队/PvP 禁用世界）
 - 触发键用 `SkillTrigger` 枚举；识别武器只认 PDC key `skillcore_weapon_id`（`WeaponItems.KEY_WEAPON_ID`），不要用 displayName 判断
@@ -92,12 +95,13 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `config.yml`：`debug`、`shared_config_dir`、`config_poll_interval`、`combat.*`（含 `pvp-blocked-worlds`）、`target-filter.*`、`input.*`（`double-shift-window-ms`/`hold-shift-delay-ms`）、`cooldown.*`、`messages.*`（`&` 颜色码）、`placeholders.*`、`effects.*`（`enabled`/`particles`/`density`/`fallback-particle`/`display.*`）、`logging.*`
 - `skills/*.yml`（一个技能一个文件，放在 jar 的 `skills/` 目录；首次运行自动复制到数据目录 `skills/`）：每把武器有 `display-name/description/material/lore/right-skill/left-skill/*-trigger/glow/custom-model-data/unbreakable/enchantments/stats`；`stats:` 只写本技能用到的键
   - 数值既可写在 `stats:` 段，也可平铺在文件顶层（`stats:` 优先）——避免「设了没反应」
-  - **技能冷却秒数**在 `stats.cooldown`（`0` = 无冷却）；也可用 `/sc cooldown <weaponId> <秒>` 写回文件并重载
+  - **技能冷却左右键分开**：`stats.cooldown`（左右共用回退）、`stats.cooldown-left`（左键技能）、`stats.cooldown-right`（右键技能）；未单独写时左右都回退 `cooldown`。`0` = 无冷却。也可用 `/sc cooldown <weaponId> <秒> [left|right|all]` 写回文件并重载
   - `display-name`/`lore` 支持 MiniMessage（`<gradient>/<color>`）与 `&` 颜色码混合，由 `TextUtils.parse` 解析
   - `enchantments:` 为「附魔 key: 等级」映射（如 `wind_burst: 5`），通过 `Registry.ENCHANTMENT` 解析并 `addEnchant(..., true)` 绕过原版等级上限
   - 风暴战锤为无目标技能：不锁定目标也能释放（`canUse` 不要求 target），以自身为落点做 AOE；砸地会向上弹飞范围内敌人（`slam-uppercut-velocity`）并自身反冲（`slam-self-bounce`），模拟原版风爆手感
+- `armor/*.yml`（一个套装一个文件，放在 jar 的 `armor/` 目录；首次运行自动复制到数据目录 `armor/`）：每套有 `display-name/description/skill/helmet/chestplate/leggings/boots`（各含 `material/display-name/custom-model-data/unbreakable/craftengine_model/enchantments/lore`，四个部位可写不同的 CraftEngine 模型 ID）与 `set-bonus`（`lifesteal`/`reflect-percent`/`reflect-flat`/`damage-multiplier`/`damage-reduction`/`max-health`/`movement-speed-percent`，其余键进 `ArmorStats.custom` 供技能读取）；穿戴整套四件后被动加成 + 属性加成（最大生命/移速，脱下自动移除）+ 绑定的盔甲技能自动生效
 - `testdummy.yml`：`dummy.name/health/no-ai/silent`；本服数据目录独立，不参与共享
-- `lore` 变量由 `WeaponLore` 替换，例如：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets}`
+- `lore` 变量由 `WeaponLore` 替换，例如：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets} {on-hit-percent-max} {on-hit-interval}`
 
 ## 群组服共享配置
 
@@ -107,10 +111,25 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 
 ## 独立模块
 
-- PlaceholderAPI：`softdepend`，未安装时自动跳过。占位符 `%skillcore_weapon_id% / _weapon_name% / _has_weapon% / _weapon_cd% / _weapon_cd_left% / _weapon_cd_right%`
+- PlaceholderAPI：`softdepend`，未安装时自动跳过。占位符 `%skillcore_weapon_id% / _weapon_name% / _has_weapon% / _weapon_cd% / _weapon_cd_left% / _weapon_cd_right% / _armor_set% / _armor_set_name% / _has_armor_set%`
 - CraftEngine：`softdepend`，未安装时 `craftengine_model` 降级为 `material` + `custom-model-data`
 - packetevents：`softdepend`，未安装时地面碎裂特效降级为纯方块碎屑粒子（无方块裂纹数据包）
 - 测试假人：`/sc testdummy spawn [health] | list | clear [all]`，僵尸无 AI/静音/防火/不还击，持久化到 `testdummy.yml`
+- 盔甲套装：`/sc armor give <setId> [player] | list | info <setId>` 与 `/sc armors`（列表）。已内置 `sunfire_armor`（日炎之甲）：穿戴整套后周围敌人每秒灼伤（固定 1 + 最大生命 2%）
+
+## 添加一套新盔甲（含技能）
+
+1. 在 `src/main/java/com/skillcore/armor/skills/` 新建 `ArmorSkill` 实现（无参构造），标 `@ArmorSkillInfo(id = "TYPE", aliases = {...})`，覆写 `onEquip`/`onUnequip`/`cleanup`（可覆写 `onTick`）；有持久状态必须 `cleanup()`
+2. 无需手动注册：`ArmorFactory.autoRegister` 启动时扫描该包自动注册（`registerBuiltins()` 另有兜底）；覆写 `defaults()` 声明技能配置键默认值，缺失键会自动补全进 yml
+3. 在 `src/main/resources/armor/` 新建 `<setId>.yml`，写四件 + `skill: TYPE` + `set-bonus`（技能专用键从 `ArmorStats.custom*` 读取，如日炎之甲的 `sunfire-*`）
+
+## 性能要点（100 玩家在线）
+
+- 物品识别（武器/盔甲 PDC）在 `getItemMeta()` 前先 `hasItemMeta()`，普通物品零克隆，避免每次点击/检测都克隆 ItemMeta
+- `AreaUtils` / `AimUtils.getConeTargets` 用 `World.getNearbyEntities`（包围盒）先缩小候选集，不再遍历全图实体；射线用 `rayTraceEntities`
+- 盔甲周期任务每 tick 只派发 `onTick`（遍历穿戴整套的玩家，空操作）；整套穿戴检测每秒兜底一次，且通常由事件驱动
+- 冷却记录：玩家退出即 `CooldownUtils.clearAll`，另有每分钟清理过期条目；冷却提示按 `prompt-interval-ms` 节流
+- 特效统一走 `EffectSettings` 开关/密度，粒子 null/NaN 防护
 
 ## 遗留代码清理（已完成）
 

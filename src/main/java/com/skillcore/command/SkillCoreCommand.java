@@ -55,6 +55,8 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             }
             case "updatelore", "refreshlore", "lore" -> handleUpdateLore(sender, args, prefix);
             case "cooldown", "cd", "setcooldown" -> handleCooldown(sender, args, prefix);
+            case "armor" -> handleArmor(sender, args, prefix);
+            case "armors" -> handleArmorList(sender, prefix);
             case "testdummy", "dummy" -> handleTestDummy(sender, args, prefix);
             case "reload" -> {
                 if (!sender.hasPermission("skillcore.admin")) {
@@ -105,7 +107,9 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             var w = entry.weapon();
             MessageUtils.send(sender, "&e" + w.id() + " &7- " + TextUtils.toLegacy(w.displayName())
                     + " &8| 伤害 " + MathUtils.format1(w.stats().damage())
-                    + " CD " + MathUtils.format1(w.stats().cooldown())
+                    + " CD右 " + MathUtils.format1(w.stats().cooldownRight())
+                    + (w.leftSkillType() != null && Double.compare(w.stats().cooldownLeft(), w.stats().cooldownRight()) != 0
+                        ? "/左 " + MathUtils.format1(w.stats().cooldownLeft()) : "")
                     + "s | R:" + w.rightSkillType()
                     + (w.leftSkillType() != null ? " L:" + w.leftSkillType() : ""));
         }
@@ -131,8 +135,11 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
                 + " x" + MathUtils.format1(s.criticalMultiplier()));
         MessageUtils.send(sender, "&7穿透: &f" + MathUtils.format1(s.armorPenetration() * 100) + "%"
                 + "  &7吸血: &f" + MathUtils.format1(s.lifesteal() * 100) + "%");
-        MessageUtils.send(sender, "&7冷却: &f" + MathUtils.format1(s.cooldown()) + "s"
-                + "  &7范围: &f" + MathUtils.format1(s.range()));
+        String cdInfo = "&7冷却: &f右 " + MathUtils.format1(s.cooldownRight()) + "s";
+        if (w.leftSkillType() != null && Double.compare(s.cooldownLeft(), s.cooldownRight()) != 0) {
+            cdInfo += " &7/ 左 &f" + MathUtils.format1(s.cooldownLeft()) + "s";
+        }
+        MessageUtils.send(sender, cdInfo + "  &7范围: &f" + MathUtils.format1(s.range()));
         MessageUtils.send(sender, "&7AOE: &f" + MathUtils.format1(s.aoeRadius())
                 + "  &7位移: &f" + MathUtils.format1(s.dashDistance()) + "格");
     }
@@ -171,7 +178,10 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /sc cooldown &lt;weaponId&gt; &lt;秒&gt; — 设置某技能的冷却（写回 skills/&lt;id&gt;.yml 并重载）。
+     * /sc cooldown &lt;weaponId&gt; &lt;秒&gt; [left|right|all] — 设置技能冷却（写回 skills/&lt;id&gt;.yml 并重载）。
+     * <p>
+     * 不带第三参数默认同时写 {@code cooldown} / {@code cooldown-left} / {@code cooldown-right}；
+     * 指定 {@code left} 或 {@code right} 只改对应键位技能的冷却，实现左右键冷却分开。
      */
     private void handleCooldown(CommandSender sender, String[] args, String prefix) {
         if (!sender.hasPermission("skillcore.admin")) {
@@ -179,7 +189,7 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            MessageUtils.sendPrefixed(sender, prefix, "&e/sc cooldown <weaponId> <秒> &7(0 = 无冷却)");
+            MessageUtils.sendPrefixed(sender, prefix, "&e/sc cooldown <weaponId> <秒> [left|right|all] &7(0 = 无冷却)");
             return;
         }
         String weaponId = args[1];
@@ -196,13 +206,121 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             MessageUtils.sendPrefixed(sender, prefix, "&c未找到技能: &e" + weaponId);
             return;
         }
-        if (!plugin.getConfigManager().setSkillStat(weaponId, "cooldown", seconds)) {
+        String side = args.length >= 4 ? args[3].toLowerCase(Locale.ROOT) : "all";
+        boolean ok;
+        switch (side) {
+            case "left" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
+            case "right" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
+            default -> {
+                // all：cooldown 作为回退，同时写左右两个键
+                ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown", seconds)
+                        && plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds)
+                        && plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
+            }
+        }
+        if (!ok) {
             MessageUtils.sendPrefixed(sender, prefix, "&c写入失败，请检查 skills/&e" + weaponId + ".yml");
             return;
         }
         plugin.reloadAll();
+        String sideText = side.equals("left") ? "左键" : side.equals("right") ? "右键" : "全部";
         MessageUtils.sendPrefixed(sender, prefix,
-                "&a已将 &e" + weaponId + " &a的冷却设为 &f" + MathUtils.format1(seconds) + "s &7(已写回并重载)");
+                "&a已将 &e" + weaponId + " &a的" + sideText + "冷却设为 &f" + MathUtils.format1(seconds) + "s &7(已写回并重载)");
+    }
+
+    /**
+     * /sc armor give &lt;setId&gt; [player] | list | info &lt;setId&gt; — 盔甲套装底层框架。
+     */
+    private void handleArmor(CommandSender sender, String[] args, String prefix) {
+        if (args.length < 2) {
+            MessageUtils.sendPrefixed(sender, prefix, "&e/sc armor <give|list|info> ...");
+            return;
+        }
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "give" -> handleArmorGive(sender, args, prefix);
+            case "info" -> handleArmorInfo(sender, args, prefix);
+            default -> handleArmorList(sender, prefix);
+        }
+    }
+
+    private void handleArmorGive(CommandSender sender, String[] args, String prefix) {
+        if (!sender.hasPermission("skillcore.admin")) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c无权限.");
+            return;
+        }
+        if (args.length < 3) {
+            MessageUtils.sendPrefixed(sender, prefix, "&e/sc armor give <setId> [player]");
+            return;
+        }
+        String setId = args[2];
+        Player target = args.length >= 4
+                ? plugin.getServer().getPlayer(args[3])
+                : (sender instanceof Player p ? p : null);
+        if (target == null) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c目标玩家不在线.");
+            return;
+        }
+        var manager = plugin.getArmorManager();
+        if (manager == null || !manager.giveSet(target, setId)) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c未找到盔甲套装: &e" + setId);
+            return;
+        }
+        MessageUtils.sendPrefixed(sender, prefix,
+                "&a已发放整套 &e" + setId + " &a给 &f" + target.getName() + " &7(穿戴四件后加成生效)");
+    }
+
+    private void handleArmorList(CommandSender sender, String prefix) {
+        MessageUtils.sendPrefixed(sender, prefix, "&6===== 盔甲套装 =====");
+        var registry = plugin.getArmorRegistry();
+        if (registry == null || registry.all().isEmpty()) {
+            MessageUtils.send(sender, "&7(空) 请在 armor/ 目录配置套装");
+            return;
+        }
+        for (var set : registry.all()) {
+            var s = set.stats();
+            MessageUtils.send(sender, "&e" + set.id() + " &7- " + TextUtils.toLegacy(set.displayName())
+                    + " &8| 吸血 " + MathUtils.format1(s.lifesteal() * 100) + "%"
+                    + " 反伤 " + MathUtils.format1(s.reflectPercent() * 100) + "%"
+                    + " 增伤 x" + MathUtils.format1(s.damageMultiplier())
+                    + " 减伤 " + MathUtils.format1(s.damageReduction() * 100) + "%");
+        }
+    }
+
+    private void handleArmorInfo(CommandSender sender, String[] args, String prefix) {
+        if (args.length < 3) {
+            MessageUtils.sendPrefixed(sender, prefix, "&e/sc armor info <setId>");
+            return;
+        }
+        var set = plugin.getArmorRegistry() != null ? plugin.getArmorRegistry().get(args[2]) : null;
+        if (set == null) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c未找到盔甲套装: &e" + args[2]);
+            return;
+        }
+        var s = set.stats();
+        MessageUtils.send(sender, "&6===== " + TextUtils.toLegacy(set.displayName()) + " &6=====");
+        MessageUtils.send(sender, "&7ID: &f" + set.id()
+                + (set.skillType() != null && !set.skillType().isEmpty() ? "  &7技能: &f" + set.skillType() : ""));
+        if (set.description() != null && !set.description().isEmpty()) {
+            MessageUtils.send(sender, TextUtils.toLegacy(set.description()));
+        }
+        MessageUtils.send(sender, "&7吸血: &f" + MathUtils.format1(s.lifesteal() * 100) + "%"
+                + "  &7反伤: &f" + MathUtils.format1(s.reflectPercent() * 100) + "% + " + MathUtils.format1(s.reflectFlat()));
+        MessageUtils.send(sender, "&7增伤: &fx" + MathUtils.format1(s.damageMultiplier())
+                + "  &7减伤: &f" + MathUtils.format1(s.damageReduction() * 100) + "%"
+                + "  &7生命: &f+" + MathUtils.format1(s.maxHealthBonus())
+                + "  &7移速: &f+" + MathUtils.format1(s.movementSpeedPercent() * 100) + "%");
+        MessageUtils.send(sender, "&7部位: " + pieceLine(set.helmet()) + " &8/ " + pieceLine(set.chestplate())
+                + " &8/ " + pieceLine(set.leggings()) + " &8/ " + pieceLine(set.boots()));
+    }
+
+    private String pieceLine(com.skillcore.armor.ArmorPiece piece) {
+        if (piece == null) {
+            return "&7无";
+        }
+        String source = piece.hasCraftEngineModel()
+                ? "CE:" + piece.craftEngineModel()
+                : piece.material().name();
+        return "&f" + TextUtils.toLegacy(piece.displayName()) + " &8(" + source + ")";
     }
 
     private void handleTestDummy(CommandSender sender, String[] args, String prefix) {
@@ -268,7 +386,9 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         MessageUtils.send(sender, "&e/sc weapons &7- 武器列表");
         MessageUtils.send(sender, "&e/sc info <weaponId> &7- 武器详情");
         MessageUtils.send(sender, "&e/sc updatelore <weaponId> [player|all] &7- 刷新 lore");
-        MessageUtils.send(sender, "&e/sc cooldown <weaponId> <秒> &7- 设置技能冷却");
+        MessageUtils.send(sender, "&e/sc cooldown <weaponId> <秒> [left|right|all] &7- 设置技能冷却");
+        MessageUtils.send(sender, "&e/sc armor give <setId> [player] &7- 发放整套盔甲");
+        MessageUtils.send(sender, "&e/sc armors &7- 盔甲套装列表");
         MessageUtils.send(sender, "&e/sc testdummy spawn [health] &7- 生成测试假人");
         MessageUtils.send(sender, "&e/sc reload &7- 重载配置");
     }
@@ -277,7 +397,11 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> result = new ArrayList<>();
         if (args.length == 1) {
-            result.addAll(Arrays.asList("give", "weapons", "info", "updatelore", "cooldown", "testdummy", "reload", "help"));
+            result.addAll(Arrays.asList("give", "weapons", "info", "updatelore", "cooldown", "armor", "armors", "testdummy", "reload", "help"));
+            return result;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("armor")) {
+            result.addAll(Arrays.asList("give", "list", "info"));
             return result;
         }
         if (args.length == 2) {
@@ -307,6 +431,23 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             } else if ((args[0].equalsIgnoreCase("testdummy") || args[0].equalsIgnoreCase("dummy"))
                     && args[1].equalsIgnoreCase("clear")) {
                 result.add("all");
+            } else if (args[0].equalsIgnoreCase("armor")
+                    && (args[1].equalsIgnoreCase("give") || args[1].equalsIgnoreCase("info"))) {
+                String input = args[2].toLowerCase(Locale.ROOT);
+                var registry = plugin.getArmorRegistry();
+                if (registry != null) {
+                    for (String id : registry.ids()) {
+                        if (id.startsWith(input)) {
+                            result.add(id);
+                        }
+                    }
+                }
+            }
+        } else if (args.length == 4) {
+            if (args[0].equalsIgnoreCase("armor") && args[1].equalsIgnoreCase("give")) {
+                for (Player p : plugin.getServer().getOnlinePlayers()) {
+                    result.add(p.getName());
+                }
             }
         }
         return result;

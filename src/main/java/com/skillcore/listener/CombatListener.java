@@ -13,6 +13,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -78,12 +79,32 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        // --- 盔甲套装被动：穿戴整套者增伤 / 减伤（先于最终伤害计算） ---
+        com.skillcore.armor.ArmorManager armorManager = plugin.getArmorManager();
+        if (armorManager != null) {
+            if (damager instanceof Player attacker) {
+                double mult = armorManager.getActive(attacker).damageMultiplier();
+                if (mult > 0 && Math.abs(mult - 1.0) > 1.0e-9) {
+                    event.setDamage(event.getDamage() * mult);
+                }
+            }
+            if (victim instanceof Player defender) {
+                double reduction = armorManager.getActive(defender).damageReduction();
+                if (reduction > 0) {
+                    event.setDamage(event.getDamage() * (1.0 - Math.min(reduction, 1.0)));
+                }
+            }
+        }
+
         double finalDamage = event.getFinalDamage();
 
         // --- lifesteal ---
         if (damager instanceof Player player) {
             double percent = getLifesteal(player);
-            // also check buff style
+            // 叠加盔甲套装吸血
+            if (armorManager != null) {
+                percent = Math.max(percent, armorManager.getActive(player).lifesteal());
+            }
             if (percent > 0) {
                 double healed = LifestealUtils.healByDamagePercent(player, finalDamage, percent);
                 if (healed > 0 && plugin.getConfigManager().getConfig().getBoolean("logging.log-damage-calc", false)) {
@@ -92,12 +113,14 @@ public final class CombatListener implements Listener {
                             player.getName(), victim.getName(), finalDamage, healed));
                 }
             }
-            // 武器 onHit / onDamaged 钩子
-            if (plugin.getWeaponManager() != null) {
-                // 受击方若是玩家且持技能武器
-                if (victim instanceof Player victimPlayer) {
-                    plugin.getWeaponManager().notifyDamaged(victimPlayer, damager, finalDamage);
-                }
+            // 武器命中钩子：普通近战命中附带效果（技能伤害已标记，跳过，避免重复触发）
+            if (plugin.getWeaponManager() != null
+                    && !com.skillcore.utils.SkillDamageUtils.isSkillDamage(victim)) {
+                plugin.getWeaponManager().notifyHit(player, victim, finalDamage);
+            }
+            // 武器受击钩子（反伤类）：受击方若是玩家且持技能武器
+            if (plugin.getWeaponManager() != null && victim instanceof Player victimPlayer) {
+                plugin.getWeaponManager().notifyDamaged(victimPlayer, damager, finalDamage);
             }
         }
 
@@ -106,11 +129,17 @@ public final class CombatListener implements Listener {
         double reflectFlat = 0.0;
         if (victim instanceof Player player) {
             reflectPercentValue = getReflect(player);
+            // 叠加盔甲套装反伤
+            if (armorManager != null) {
+                var armor = armorManager.getActive(player);
+                reflectPercentValue = Math.max(reflectPercentValue, armor.reflectPercent());
+                reflectFlat = Math.max(reflectFlat, armor.reflectFlat());
+            }
         }
         ReflectDamageUtils.ReflectBuff buff = ReflectDamageUtils.getReflectBuff(victim);
         if (buff != null) {
             reflectPercentValue = Math.max(reflectPercentValue, buff.percent());
-            reflectFlat = buff.flat();
+            reflectFlat = Math.max(reflectFlat, buff.flat());
         }
         if (reflectPercentValue > 0 || reflectFlat > 0) {
             double reflected = ReflectDamageUtils.reflect(
@@ -153,5 +182,18 @@ public final class CombatListener implements Listener {
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         ReflectDamageUtils.removeReflectBuff(event.getEntity());
+    }
+
+    /** 击杀钩子：通知击杀者手持武器的 onKill。 */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (!(event.getEntity() instanceof LivingEntity victim) || plugin.getWeaponManager() == null) {
+            return;
+        }
+        Player killer = victim.getKiller();
+        if (killer == null) {
+            return;
+        }
+        plugin.getWeaponManager().notifyKill(killer, victim);
     }
 }

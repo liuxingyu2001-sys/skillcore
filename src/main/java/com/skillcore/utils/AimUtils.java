@@ -130,21 +130,25 @@ public final class AimUtils {
         Vector forward = eye.getDirection().normalize();
         double cosLimit = Math.cos(Math.toRadians(Math.max(0.1, Math.min(180.0, angleDegrees))));
 
-        for (LivingEntity entity : caster.getWorld().getLivingEntities()) {
-            if (entity.equals(caster) || !DamageUtils.isAlive(entity)) {
+        // 用包围盒先缩小候选集，避免遍历全图实体
+        for (Entity entity : caster.getWorld().getNearbyEntities(eye, maxDistance, maxDistance, maxDistance)) {
+            if (!(entity instanceof LivingEntity living)) {
                 continue;
             }
-            if (filter != null && !filter.test(entity)) {
+            if (living.equals(caster) || !DamageUtils.isAlive(living)) {
                 continue;
             }
-            Vector toTarget = entity.getEyeLocation().toVector().subtract(eye.toVector());
+            if (filter != null && !filter.test(living)) {
+                continue;
+            }
+            Vector toTarget = living.getEyeLocation().toVector().subtract(eye.toVector());
             double distance = toTarget.length();
             if (distance > maxDistance || distance < 1.0e-6) {
                 continue;
             }
             double dot = toTarget.normalize().dot(forward);
             if (dot >= cosLimit) {
-                result.add(entity);
+                result.add(living);
             }
         }
         return result;

@@ -6,7 +6,7 @@
 
     <groupId>com.skillcore</groupId>
     <artifactId>skillcore</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.2</version>
     <packaging>jar</packaging>
     <name>SkillCore</name>
     <description>Complete Minecraft skill plugin foundation - Paper 1.21 / 26.2</description>

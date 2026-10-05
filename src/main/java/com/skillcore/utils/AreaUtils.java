@@ -32,15 +32,19 @@ public final class AreaUtils {
             return result;
         }
         double radiusSq = radius * radius;
-        for (LivingEntity entity : center.getWorld().getLivingEntities()) {
-            if (!DamageUtils.isAlive(entity)) {
+        // 用包围盒先缩小候选集，避免遍历全图实体
+        for (Entity entity : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (!(entity instanceof LivingEntity living)) {
                 continue;
             }
-            if (filter != null && !filter.test(entity)) {
+            if (!DamageUtils.isAlive(living)) {
                 continue;
             }
-            if (entity.getLocation().distanceSquared(center) <= radiusSq) {
-                result.add(entity);
+            if (filter != null && !filter.test(living)) {
+                continue;
+            }
+            if (living.getLocation().distanceSquared(center) <= radiusSq) {
+                result.add(living);
             }
         }
         return result;
@@ -59,19 +63,22 @@ public final class AreaUtils {
             return result;
         }
         double radiusSq = radius * radius;
-        for (LivingEntity entity : center.getWorld().getLivingEntities()) {
-            if (!DamageUtils.isAlive(entity)) {
+        for (Entity entity : center.getWorld().getNearbyEntities(center, radius, halfHeight, radius)) {
+            if (!(entity instanceof LivingEntity living)) {
                 continue;
             }
-            if (filter != null && !filter.test(entity)) {
+            if (!DamageUtils.isAlive(living)) {
                 continue;
             }
-            Location loc = entity.getLocation();
+            if (filter != null && !filter.test(living)) {
+                continue;
+            }
+            Location loc = living.getLocation();
             double dx = loc.getX() - center.getX();
             double dz = loc.getZ() - center.getZ();
             double dy = loc.getY() - center.getY();
             if (dx * dx + dz * dz <= radiusSq && Math.abs(dy) <= halfHeight) {
-                result.add(entity);
+                result.add(living);
             }
         }
         return result;
@@ -86,9 +93,10 @@ public final class AreaUtils {
             return result;
         }
         BoundingBox box = BoundingBox.of(center, xRadius, yRadius, zRadius);
-        for (LivingEntity entity : center.getWorld().getLivingEntities()) {
-            if (DamageUtils.isAlive(entity) && entity.getBoundingBox().overlaps(box)) {
-                result.add(entity);
+        for (Entity entity : center.getWorld().getNearbyEntities(center, xRadius, yRadius, zRadius)) {
+            if (entity instanceof LivingEntity living && DamageUtils.isAlive(living)
+                    && living.getBoundingBox().overlaps(box)) {
+                result.add(living);
             }
         }
         return result;
@@ -103,14 +111,23 @@ public final class AreaUtils {
             return result;
         }
         World world = from.getWorld();
-        double widthSq = width * width;
-        for (LivingEntity entity : world.getLivingEntities()) {
-            if (!DamageUtils.isAlive(entity)) {
+        // 线段包围盒（含宽度）
+        double minX = Math.min(from.getX(), to.getX()) - width;
+        double maxX = Math.max(from.getX(), to.getX()) + width;
+        double minY = Math.min(from.getY(), to.getY()) - width;
+        double maxY = Math.max(from.getY(), to.getY()) + width;
+        double minZ = Math.min(from.getZ(), to.getZ()) - width;
+        double maxZ = Math.max(from.getZ(), to.getZ()) + width;
+        Location center = new Location(world, (minX + maxX) / 2.0, (minY + maxY) / 2.0, (minZ + maxZ) / 2.0);
+        double hx = (maxX - minX) / 2.0;
+        double hy = (maxY - minY) / 2.0;
+        double hz = (maxZ - minZ) / 2.0;
+        for (Entity entity : world.getNearbyEntities(center, hx, hy, hz)) {
+            if (!(entity instanceof LivingEntity living) || !DamageUtils.isAlive(living)) {
                 continue;
             }
-            Location loc = entity.getLocation();
-            if (distanceToSegment(loc, from, to) <= width) {
-                result.add(entity);
+            if (distanceToSegment(living.getLocation(), from, to) <= width) {
+                result.add(living);
             }
         }
         return result;
