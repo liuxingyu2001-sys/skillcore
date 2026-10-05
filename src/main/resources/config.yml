@@ -1,0 +1,45 @@
+# SkillCore main configuration
+# API target: Paper 1.21 / Server 26.2
+
+debug: false
+
+# Global combat settings
+combat:
+  # Enable default damage calculation helpers
+  enable-custom-damage: true
+  # Critical hit base multiplier
+  critical-multiplier: 1.5
+  # Default critical chance if not specified (0.0 - 1.0)
+  default-critical-chance: 0.1
+  # Armor penetration default (0.0 - 1.0)
+  default-armor-penetration: 0.0
+
+# Cooldown display
+cooldown:
+  action-bar: true
+  boss-bar: false
+  message: true
+
+# Skill input binding (default trigger keys)
+input:
+  # left | right | shift_left | shift_right | both
+  default-right-click-skill: true
+  default-left-click-skill: true
+
+# Messages (supports & color codes and MiniMessage-like legacy)
+messages:
+  prefix: "&8[&6Skill&8] &r"
+  skill-used: "&a你使用了 &e{skill}&a!"
+  skill-cooldown: "&c技能冷却中: &e{skill} &7({remaining}s)"
+  skill-no-mana: "&c法力不足: &e{skill} &7({cost} 需要 / {current} 当前)"
+  skill-not-found: "&c未找到技能: &e{skill}"
+  skill-locked: "&c你尚未解锁该技能: &e{skill}"
+  no-permission: "&c你没有权限使用该技能."
+  reload-done: "&a配置已重载."
+  skill-list-header: "&6===== 技能列表 ====="
+  skill-list-entry: "&e{skill} &7- &f{description}"
+
+# Logging
+logging:
+  log-skill-cast: true
+  log-damage-calc: false

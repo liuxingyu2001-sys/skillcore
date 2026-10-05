@@ -1,0 +1,185 @@
+# ============================================================
+# SkillCore 技能武器配置
+# 每把武器独立数值，改这里即可调平衡，不用改代码。
+#
+# 流程:
+#   1. 代码里 registerSkill("类型名", 实现类::new)
+#   2. 这里 right-skill / left-skill 填类型名
+#   3. stats 下写这把武器的数值
+#
+# 可用内置 skill 类型 (factory 自带):
+#   STRIKE          单体强击
+#   DASH_DAMAGE     突刺伤害
+#   BLADE_DASH      利刃突刺 (突刺+吸血+减速)
+#   SWEEP           横扫 AOE
+#   CHARGE          冲锋突刺
+#   PERCENT_STRIKE  百分比生命打击
+#   CONTROL_STRIKE  控制打击
+#   BLINK_BURST     闪现爆发
+#   LIFESTEAL_STRIKE 吸血强击
+#   THORNS          反伤
+# ============================================================
+
+weapons:
+
+  # ----------------------------------------------------------
+  # 示例: 利刃突刺  (右键向前突刺)
+  # ----------------------------------------------------------
+  blade_dash:
+    display-name: "&6利刃突刺"
+    description: "&7右键向前突刺，斩击路径上的敌人"
+    material: NETHERITE_SWORD
+    right-skill: BLADE_DASH
+    left-skill: STRIKE
+    right-trigger: RIGHT_CLICK
+    left-trigger: LEFT_CLICK
+    glow: true
+    custom-model-data: 0
+    lore:
+      - "&7右键: 向前突刺并斩击"
+      - "&7左键: 普通强击"
+      - "&8冷却: {cooldown}s"
+      - "&c伤害: {damage}  &a吸血: {lifesteal}%"
+      - "&7暴击: {crit}% x{crit-multi}  穿透: {pen}%"
+    stats:
+      damage: 15
+      damage-scaling: 1.5
+      critical-chance: 0.2
+      critical-multiplier: 1.8
+      armor-penetration: 0.15
+      lifesteal: 0.15
+      cooldown: 5.0
+      dash-speed: 1.8
+      dash-distance: 5.0
+      dash-y: 0.12
+      range: 5.0
+      aim-range: 10.0
+      knockback: 0.35
+      slow-duration-ticks: 40
+      slow-amplifier: 1
+      max-targets: 4
+      particle: CRIT
+      sound: ENTITY_PLAYER_ATTACK_SWEEP
+
+  # ----------------------------------------------------------
+  # 示例: 血刃 (吸血强击)
+  # ----------------------------------------------------------
+  blood_blade:
+    display-name: "&c血刃"
+    description: "&7造成伤害并回复生命"
+    material: IRON_SWORD
+    right-skill: LIFESTEAL_STRIKE
+    glow: false
+    lore:
+      - "&7右键: 吸血打击"
+      - "&8冷却: {cooldown}s"
+      - "&a吸血: {lifesteal}%"
+      - "&7伤害: {damage}  回复: {heal}"
+    stats:
+      damage: 12
+      critical-chance: 0.15
+      critical-multiplier: 1.6
+      lifesteal: 0.35
+      cooldown: 3.0
+      heal: 2.0
+      range: 4.5
+      particle: CRIT_MAGIC
+      sound: ENTITY_PLAYER_ATTACK_CRIT
+
+  # ----------------------------------------------------------
+  # 示例: 破晓 (百分比生命打击)
+  # ----------------------------------------------------------
+  dawnbreaker:
+    display-name: "&e破晓"
+    description: "&7对目标造成最大生命值 8% 的伤害"
+    material: GOLDEN_SWORD
+    right-skill: PERCENT_STRIKE
+    lore:
+      - "&7右键: 百分比生命打击"
+      - "&8冷却: {cooldown}s"
+      - "&c最大生命 {percent-max}% 伤害"
+      - "&7伤害: {damage}  穿透: {pen}%"
+    stats:
+      damage: 4
+      percent-max-health: 0.08
+      percent-damage-cap: 50
+      armor-penetration: 0.4
+      cooldown: 8.0
+      aim-range: 12
+      particle: END_ROD
+      sound: ENTITY_EVOKER_CAST_SPELL
+
+  # ----------------------------------------------------------
+  # 示例: 雷霆重击 (控制打击)
+  # ----------------------------------------------------------
+  thunder_hammer:
+    display-name: "&b雷霆重击"
+    description: "&7重击并眩晕目标"
+    material: NETHERITE_AXE
+    right-skill: CONTROL_STRIKE
+    left-skill: SWEEP
+    lore:
+      - "&7右键: 眩晕打击"
+      - "&7左键: 横扫"
+      - "&8冷却: {cooldown}s"
+      - "&c伤害: {damage}  眩晕: {stun-ticks}t"
+      - "&7AOE: {aoe}  溅射: {aoe-ratio}%"
+    stats:
+      damage: 18
+      critical-chance: 0.1
+      critical-multiplier: 2.0
+      stun-duration-ticks: 30
+      knockback: 0.6
+      cooldown: 6.0
+      range: 5.5
+      aoe-radius: 3.0
+      aoe-damage-ratio: 0.6
+      particle: ELECTRIC_SPARK
+      sound: ENTITY_LIGHTNING_BOLT_THUNDER
+
+  # ----------------------------------------------------------
+  # 示例: 影袭 (闪现爆发)
+  # ----------------------------------------------------------
+  shadow_burst:
+    display-name: "&5影袭"
+    description: "&7闪现并爆发伤害"
+    material: ENDER_PEARL
+    right-skill: BLINK_BURST
+    lore:
+      - "&7右键: 闪现 + 爆发"
+      - "&8冷却: {cooldown}s"
+      - "&7闪现: {blink}格  AOE: {aoe}"
+      - "&c伤害: {damage}  溅射: {aoe-ratio}%"
+    stats:
+      damage: 14
+      blink-distance: 8
+      aoe-radius: 3.5
+      aoe-damage-ratio: 0.8
+      cooldown: 10.0
+      particle: PORTAL
+      sound: ENTITY_ENDERMAN_TELEPORT
+
+  # ----------------------------------------------------------
+  # 示例: 疾风刺 (冲锋)
+  # ----------------------------------------------------------
+  gale_lance:
+    display-name: "&a疾风刺"
+    description: "&7向目标冲锋并突刺"
+    material: IRON_SWORD
+    right-skill: CHARGE
+    lore:
+      - "&7右键: 冲锋突刺"
+      - "&8冷却: {cooldown}s"
+      - "&c伤害: {damage}  吸血: {lifesteal}%"
+      - "&7突进: {dash-distance}格  击退: {knockback}"
+    stats:
+      damage: 13
+      dash-speed: 2.2
+      dash-distance: 8
+      knockback: 0.5
+      lifesteal: 0.1
+      cooldown: 4.0
+      aim-range: 14
+      aim-angle: 45
+      particle: CLOUD
+      sound: ENTITY_BREEZE_WIND_BURST

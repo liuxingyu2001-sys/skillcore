@@ -1,0 +1,21 @@
+name: SkillCore
+version: '${project.version}'
+main: com.skillcore.SkillCorePlugin
+api-version: '1.21'
+folia-supported: false
+authors: [SkillCore]
+description: Skill weapon plugin - skills are bound to weapons. Hold the weapon to use its skill.
+
+commands:
+  skillcore:
+    description: SkillCore main command
+    aliases: [sc, skillweapon]
+    permission: skillcore.admin
+
+permissions:
+  skillcore.admin:
+    description: Admin access to SkillCore
+    default: op
+  skillcore.bypass.cooldown:
+    description: Bypass skill weapon cooldowns
+    default: op
