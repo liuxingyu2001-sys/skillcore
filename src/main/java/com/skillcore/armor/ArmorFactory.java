@@ -27,16 +27,6 @@ public final class ArmorFactory {
     /** 盔甲技能类型 key -> 创建器。 */
     private final Map<String, Function<ArmorSet, ArmorSkill>> skillCreators = new ConcurrentHashMap<>();
 
-    /** 盔甲技能类型 key -> 配置键默认值（供缺失键自动补全）。 */
-    private static final Map<String, Map<String, Object>> SKILL_DEFAULTS = new ConcurrentHashMap<>();
-
-    static {
-        // 内置技能默认键（与技能类里 defaults() 一致）
-        SKILL_DEFAULTS.put("SUNFIRE", new SunfireArmorSkill().defaults());
-        SKILL_DEFAULTS.put("SUNFIRE_ARMOR", new SunfireArmorSkill().defaults());
-        SKILL_DEFAULTS.put("BURN_AURA", new SunfireArmorSkill().defaults());
-    }
-
     public ArmorFactory() {
         registerBuiltins();
     }
@@ -94,12 +84,6 @@ public final class ArmorFactory {
                 }
             };
             registerSkill(info.id(), creator);
-            // 同步登记配置键默认值（若注解类实现了 defaults）
-            try {
-                ArmorSkill sample = creator.apply(null);
-                SKILL_DEFAULTS.put(info.id().toUpperCase(Locale.ROOT), sample.defaults());
-            } catch (Exception ignored) {
-            }
             for (String alias : info.aliases()) {
                 registerSkill(alias, creator);
             }
@@ -126,14 +110,6 @@ public final class ArmorFactory {
         }
         Function<ArmorSet, ArmorSkill> fn = skillCreators.get(type.toUpperCase(Locale.ROOT));
         return fn == null ? null : fn.apply(set);
-    }
-
-    /** 某盔甲技能的配置键默认值（供 ConfigManager 补全缺失键）。 */
-    public static Map<String, Object> defaultsFor(String type) {
-        if (type == null) {
-            return Map.of();
-        }
-        return SKILL_DEFAULTS.getOrDefault(type.toUpperCase(Locale.ROOT), Map.of());
     }
 
     /** 解析一套盔甲（armor/<id>.yml）。 */

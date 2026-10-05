@@ -76,24 +76,6 @@ public final class SunfireArmorSkill implements ArmorSkill {
         states.clear();
     }
 
-    /** 配置键默认值（与下方 custom* 读取的默认值保持一致，供缺失键自动补全）。 */
-    @Override
-    public java.util.Map<String, Object> defaults() {
-        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
-        map.put("sunfire-flat", 1.0);
-        map.put("sunfire-percent-max", 0.02);
-        map.put("sunfire-radius", 4.0);
-        map.put("sunfire-interval-ticks", 20.0);
-        map.put("sunfire-particle", "FLAME");
-        map.put("sunfire-ring", true);
-        map.put("sunfire-ring-radius", 2.0);
-        map.put("sunfire-ring-y", 0.3);
-        map.put("sunfire-ring-points", 32);
-        map.put("sunfire-ring-interval-ticks", 5.0);
-        map.put("sunfire-ring-particle", "FLAME");
-        return map;
-    }
-
     private void stop(Player player) {
         State state = states.remove(player.getUniqueId());
         if (state != null) {

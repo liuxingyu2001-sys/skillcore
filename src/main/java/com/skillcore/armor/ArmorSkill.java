@@ -27,13 +27,4 @@ public interface ArmorSkill {
     /** 插件禁用 / 重载时清理该技能持有的状态。 */
     default void cleanup() {
     }
-
-    /**
-     * 该技能的配置键默认值（用于缺失键自动补全）。
-     * <p>
-     * 返回的键会被写入 {@code set-bonus:} 段，与技能代码里 {@code custom*()} 读的默认值保持一致。
-     */
-    default java.util.Map<String, Object> defaults() {
-        return java.util.Map.of();
-    }
 }

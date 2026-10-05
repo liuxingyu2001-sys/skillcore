@@ -151,7 +151,7 @@ public final class ConfigManager {
     /**
      * 重新读取 skills 目录下所有 yml。
      * <p>
-     * 先补全缺失键（写入文件），再读取，最后计算指纹，避免补全写文件被轮询误判为变更。
+     * 只读不写：缺失键一律用代码内置默认值，保持文件干净（只写用到的键）。
      */
     private void reloadSkills() {
         skillConfigs.clear();
@@ -161,10 +161,6 @@ public final class ConfigManager {
             files = new File[0];
         }
         Arrays.sort(files, Comparator.comparing(File::getName));
-
-        for (File file : files) {
-            completeSkillFile(file);
-        }
 
         long stamp = 0;
         int count = 0;
@@ -183,7 +179,7 @@ public final class ConfigManager {
     }
 
     /**
-     * 重新读取 armor 目录下所有 yml（同样先补全再读取）。
+     * 重新读取 armor 目录下所有 yml（只读不写，缺失键用内置默认值）。
      */
     private void reloadArmors() {
         armorConfigs.clear();
@@ -194,10 +190,6 @@ public final class ConfigManager {
             files = new File[0];
         }
         Arrays.sort(files, Comparator.comparing(File::getName));
-
-        for (File file : files) {
-            completeArmorFile(file);
-        }
 
         long stamp = 0;
         int count = 0;
@@ -213,195 +205,6 @@ public final class ConfigManager {
         }
         this.armorStamp = stamp;
         this.armorFileCount = count;
-    }
-
-    /**
-     * 补全技能文件缺失的配置键（写回文件）。
-     * <p>
-     * 顶层外观键 + {@code stats:} 段全部数值键；内容键（lore / enchantments /
-     * right-skill / left-skill）无默认值，不强制写入。
-     */
-    private void completeSkillFile(File file) {
-        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
-        String base = file.getName();
-        base = base.substring(0, base.length() - 4);
-        String id = cfg.getString("id", base);
-
-        java.util.Map<String, Object> defaults = new java.util.LinkedHashMap<>();
-        defaults.put("id", id);
-        defaults.put("display-name", cfg.getString("display-name", id));
-        defaults.put("description", cfg.getString("description", ""));
-        defaults.put("material", cfg.getString("material", "IRON_SWORD"));
-        defaults.put("right-trigger", cfg.getString("right-trigger", "RIGHT_CLICK"));
-        defaults.put("left-trigger", cfg.getString("left-trigger", "LEFT_CLICK"));
-        defaults.put("glow", cfg.getBoolean("glow", false));
-        defaults.put("custom-model-data", cfg.getInt("custom-model-data", 0));
-        defaults.put("unbreakable", cfg.getBoolean("unbreakable", false));
-        defaults.put("craftengine_model", cfg.getString("craftengine_model", ""));
-
-        // 数值键：跟随文件已有风格（有 stats: 段写 stats.*，否则平铺顶层）
-        String statsPrefix = cfg.contains("stats") ? "stats." : "";
-        double baseCooldown = cfg.getDouble("stats.cooldown", cfg.getDouble("cooldown", 1.0));
-        for (var entry : com.skillcore.weapon.WeaponStats.defaults(baseCooldown).entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
-            // 混合风格：stats 段缺失但顶层有该键时，用顶层值作默认，避免补全后覆盖
-            if (!statsPrefix.isEmpty() && !cfg.contains("stats." + key) && cfg.contains(key)) {
-                value = cfg.get(key);
-            }
-            defaults.put(statsPrefix + key, value);
-        }
-
-        completeConfigFile(file, defaults);
-    }
-
-    /**
-     * 补全盔甲套装文件缺失的配置键（写回文件）。
-     */
-    private void completeArmorFile(File file) {
-        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
-        String base = file.getName();
-        base = base.substring(0, base.length() - 4);
-        String id = cfg.getString("id", base);
-        String setDisplay = cfg.getString("display-name", id);
-
-        java.util.Map<String, Object> defaults = new java.util.LinkedHashMap<>();
-        defaults.put("id", id);
-        defaults.put("display-name", setDisplay);
-        defaults.put("description", cfg.getString("description", ""));
-
-        // 集齐整套后的被动加成
-        for (var entry : com.skillcore.armor.ArmorStats.defaults().entrySet()) {
-            defaults.put("set-bonus." + entry.getKey(), entry.getValue());
-        }
-
-        // 盔甲技能专用键（skill 类型对应的默认值，如日炎之甲的 sunfire-*）
-        String skillType = cfg.getString("skill");
-        if (skillType == null || skillType.isEmpty()) {
-            skillType = cfg.getString("skill-type");
-        }
-        if (skillType == null || skillType.isEmpty()) {
-            skillType = cfg.getString("armor-skill");
-        }
-        if (skillType != null && !skillType.isEmpty()) {
-            for (var entry : com.skillcore.armor.ArmorFactory.defaultsFor(skillType).entrySet()) {
-                defaults.put("set-bonus." + entry.getKey(), entry.getValue());
-            }
-        }
-
-        // 四个部位的基础外观键
-        for (com.skillcore.armor.ArmorSlot slot : com.skillcore.armor.ArmorSlot.values()) {
-            String prefix = slot.key() + ".";
-            defaults.put(prefix + "display-name", cfg.getString(prefix + "display-name", setDisplay));
-            defaults.put(prefix + "material",
-                    cfg.getString(prefix + "material",
-                            com.skillcore.armor.ArmorPiece.defaultMaterial(slot).name()));
-            defaults.put(prefix + "custom-model-data", cfg.getInt(prefix + "custom-model-data", 0));
-            defaults.put(prefix + "unbreakable", cfg.getBoolean(prefix + "unbreakable", false));
-            // 每个部位可单独写 CraftEngine 模型 ID（空 = 原版材质）
-            defaults.put(prefix + "craftengine_model", cfg.getString(prefix + "craftengine_model", ""));
-        }
-
-        completeConfigFile(file, defaults);
-    }
-
-    /**
-     * 把 {@code defaults} 中文件缺失的键写进去并保存（文本级插入，保留原有注释）。
-     * <p>
-     * {@code defaults} 的 key 为点分路径（顶层键无点，子键如 {@code stats.damage}）。
-     */
-    private void completeConfigFile(File file, java.util.Map<String, Object> defaults) {
-        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
-
-        // 按顶层段分组缺失键：段名 -> (子键, 序列化后的默认值)；段名为空表示顶层键
-        java.util.Map<String, java.util.List<String[]>> missingBySection = new java.util.LinkedHashMap<>();
-        for (var entry : defaults.entrySet()) {
-            if (cfg.contains(entry.getKey())) {
-                continue;
-            }
-            String path = entry.getKey();
-            int dot = path.indexOf('.');
-            String section = dot < 0 ? "" : path.substring(0, dot);
-            String sub = dot < 0 ? path : path.substring(dot + 1);
-            missingBySection
-                    .computeIfAbsent(section, k -> new java.util.ArrayList<>())
-                    .add(new String[]{sub, yamlScalar(entry.getValue())});
-        }
-        if (missingBySection.isEmpty()) {
-            return;
-        }
-
-        try {
-            java.util.List<String> lines = new java.util.ArrayList<>(Files.readAllLines(file.toPath()));
-            for (var entry : missingBySection.entrySet()) {
-                String section = entry.getKey();
-                if (section.isEmpty()) {
-                    // 顶层键：追加到文件末尾（顶层无缩进，仍是合法的顶层键）
-                    for (String[] kv : entry.getValue()) {
-                        lines.add(kv[0] + ": " + kv[1]);
-                    }
-                } else {
-                    insertSection(lines, section, entry.getValue());
-                }
-            }
-            Files.write(file.toPath(), lines, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            plugin.getLogger().log(Level.WARNING, "补全配置失败: " + file, ex);
-        }
-    }
-
-    /** 把缺失的子键插入到指定段内（段不存在则在文件末尾新建该段）。 */
-    private void insertSection(java.util.List<String> lines, String section, java.util.List<String[]> pairs) {
-        int headerIdx = -1;
-        for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).trim().startsWith(section + ":")) {
-                headerIdx = i;
-                break;
-            }
-        }
-        if (headerIdx < 0) {
-            // 段不存在：新建段
-            lines.add(section + ":");
-            for (String[] kv : pairs) {
-                lines.add("  " + kv[0] + ": " + kv[1]);
-            }
-            return;
-        }
-        // 段结束位置 = 下一个顶层非注释行
-        int end = lines.size();
-        for (int i = headerIdx + 1; i < lines.size(); i++) {
-            String line = lines.get(i);
-            if (!line.isEmpty() && !line.startsWith(" ") && !line.startsWith("\t")
-                    && !line.trim().startsWith("#")) {
-                end = i;
-                break;
-            }
-        }
-        java.util.List<String> toInsert = new java.util.ArrayList<>(pairs.size());
-        for (String[] kv : pairs) {
-            toInsert.add("  " + kv[0] + ": " + kv[1]);
-        }
-        lines.addAll(end, toInsert);
-    }
-
-    /** 把默认值序列化为单行 YAML 标量（字符串必要时加引号）。 */
-    private String yamlScalar(Object value) {
-        if (value == null) {
-            return "''";
-        }
-        if (value instanceof Number || value instanceof Boolean) {
-            return value.toString();
-        }
-        String s = value.toString();
-        if (s.isEmpty()) {
-            return "''";
-        }
-        if (s.contains(":") || s.startsWith(" ") || s.startsWith("#") || s.startsWith("-")
-                || s.contains("'") || s.contains("\"") || s.contains("\n") || s.contains("&")
-                || s.contains("{") || s.contains("}") || s.contains("[") || s.contains("]")) {
-            return "'" + s.replace("'", "''") + "'";
-        }
-        return s;
     }
 
     /** 当前 skills 目录的指纹（用于轮询检测变化）。 */

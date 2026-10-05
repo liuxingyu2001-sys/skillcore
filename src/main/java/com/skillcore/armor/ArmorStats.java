@@ -103,20 +103,4 @@ public final class ArmorStats {
         }
         return s;
     }
-
-    /**
-     * 全部加成键的默认值（用于配置缺失键自动补全）。
-     */
-    public static java.util.Map<String, Object> defaults() {
-        ArmorStats s = new ArmorStats();
-        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
-        map.put("lifesteal", s.lifesteal());
-        map.put("reflect-percent", s.reflectPercent());
-        map.put("reflect-flat", s.reflectFlat());
-        map.put("damage-multiplier", s.damageMultiplier());
-        map.put("damage-reduction", s.damageReduction());
-        map.put("max-health", s.maxHealthBonus());
-        map.put("movement-speed-percent", s.movementSpeedPercent());
-        return map;
-    }
 }

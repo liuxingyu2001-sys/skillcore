@@ -1,25 +1,30 @@
-# 日炎之剑 — 普通攻击附带目标最大生命值百分比的额外伤害
+# 日炎之剑 — 纯被动：普通攻击附带「固定伤害 + 目标最大生命百分比伤害」
 id: sunfire_blade
-display-name: "&6日炎之剑"
-description: "&7攻击附带目标最大生命值 5% 的伤害"
+display-name: "<gradient:#FFD75C:#FF4D00>日炎之剑</gradient>"
+description: "&7攻击附带固定伤害 + 目标最大生命百分比"
 material: NETHERITE_SWORD
 craftengine_model: ""
 right-skill: SUNFIRE_BLADE
 glow: true
 custom-model-data: 0
 lore:
-  - "&7右键: 强击"
-  - "&c攻击附带目标最大生命 {on-hit-percent-max}% 伤害"
-  - "&8附带间隔: {on-hit-interval}s"
-  - "&c伤害: {damage}"
+  - "<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━</dark_gray>"
+  - "<gradient:#FFD75C:#FF4D00>⚔ 日炎之剑</gradient>"
+  - "<gray>挥剑如日，烈焰附刃</gray>"
+  - ""
+  - "<#FF8C42>▶ 攻击附带</#FF8C42> <gray>灼热斩击</gray>"
+  - "<#FFD75C>固定伤害 <#FF8C42>{damage}</#FF8C42></#FFD75C> <dark_gray>│</dark_gray> <#FF5E5E>最大生命 <#FF8C42>{percent-max}%</#FF8C42></#FF5E5E>"
+  - "<gray>间隔 <#7EE8FF>{on-hit-interval}s</#7EE8FF> <dark_gray>·</dark_gray> <gray>被动生效</gray>"
+  - ""
+  - "<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━</dark_gray>"
 stats:
+  # 固定伤害
   damage: 10
-  critical-chance: 0.15
-  critical-multiplier: 1.6
-  # 命中附带：目标最大生命 5%
-  on-hit-percent-max: 0.05
+  # 目标最大生命百分比（5%）
+  percent-max-health: 0.05
   # 命中附带间隔（秒，0 = 每次命中都触发）
   on-hit-interval: 0.5
-  range: 4.0
+  # 被动技能：无主动冷却，不弹冷却提示
+  cooldown: 0
   particle: FLAME
   sound: ENTITY_PLAYER_ATTACK_CRIT

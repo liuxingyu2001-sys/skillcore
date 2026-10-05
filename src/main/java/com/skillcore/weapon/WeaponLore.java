@@ -42,7 +42,6 @@ public final class WeaponLore {
                 .replace("{percent-missing}", fmt(s.percentMissingHealth() * 100))
 
                 // 命中附带
-                .replace("{on-hit-percent-max}", fmt(s.onHitPercentMax() * 100))
                 .replace("{on-hit-interval}", fmt(s.onHitIntervalSeconds()))
 
                 // 吸血 / 反伤

@@ -40,8 +40,6 @@ public final class WeaponStats {
     private double cooldownRight = -1.0;
     private double manaCost = 0.0;
     private double staminaCost = 0.0;
-    /** 命中附带：目标最大生命百分比（0 = 关闭）。 */
-    private double onHitPercentMax = 0.0;
     /** 命中附带效果间隔（秒，0 = 每次命中都触发）。 */
     private double onHitIntervalSeconds = 0.5;
 
@@ -124,7 +122,6 @@ public final class WeaponStats {
     public WeaponStats cooldown(double v) { this.cooldown = v; return this; }
     public WeaponStats cooldownLeft(double v) { this.cooldownLeft = v; return this; }
     public WeaponStats cooldownRight(double v) { this.cooldownRight = v; return this; }
-    public WeaponStats onHitPercentMax(double v) { this.onHitPercentMax = v; return this; }
     public WeaponStats onHitInterval(double v) { this.onHitIntervalSeconds = v; return this; }
     public WeaponStats manaCost(double v) { this.manaCost = v; return this; }
 
@@ -191,7 +188,6 @@ public final class WeaponStats {
     public double cooldownLeft() { return cooldownLeft >= 0 ? cooldownLeft : cooldown; }
     /** 右键技能冷却；未单独配置时回退 {@link #cooldown()}。 */
     public double cooldownRight() { return cooldownRight >= 0 ? cooldownRight : cooldown; }
-    public double onHitPercentMax() { return onHitPercentMax; }
     public double onHitIntervalSeconds() { return onHitIntervalSeconds; }
     public double manaCost() { return manaCost; }
     public double staminaCost() { return staminaCost; }
@@ -310,7 +306,6 @@ public final class WeaponStats {
         stats.cooldown = section.getDouble("cooldown", stats.cooldown);
         stats.cooldownLeft = section.getDouble("cooldown-left", -1.0);
         stats.cooldownRight = section.getDouble("cooldown-right", -1.0);
-        stats.onHitPercentMax = section.getDouble("on-hit-percent-max", stats.onHitPercentMax);
         stats.onHitIntervalSeconds = section.getDouble("on-hit-interval", stats.onHitIntervalSeconds);
         stats.manaCost = section.getDouble("mana-cost", section.getDouble("mana", stats.manaCost));
         stats.staminaCost = section.getDouble("stamina-cost", stats.staminaCost);
@@ -365,73 +360,6 @@ public final class WeaponStats {
         return stats;
     }
 
-    /**
-     * 全部数值键的默认值（用于配置缺失键自动补全）。
-     * <p>
-     * {@code baseCooldown} 用于派生 {@code cooldown-left} / {@code cooldown-right}
-     * 的默认值：未单独设置时它们与 {@code cooldown} 保持一致，避免补全后悄悄改变原冷却。
-     */
-    public static java.util.Map<String, Object> defaults(double baseCooldown) {
-        WeaponStats s = new WeaponStats();
-        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
-        map.put("damage", s.damage());
-        map.put("damage-scaling", s.damageScaling());
-        map.put("critical-chance", s.criticalChance());
-        map.put("critical-multiplier", s.criticalMultiplier());
-        map.put("armor-penetration", s.armorPenetration());
-        map.put("attack-speed", s.attackSpeed());
-        map.put("percent-max-health", s.percentMaxHealth());
-        map.put("percent-current-health", s.percentCurrentHealth());
-        map.put("percent-missing-health", s.percentMissingHealth());
-        map.put("percent-damage-cap", s.percentDamageCap());
-        map.put("lifesteal", s.lifesteal());
-        map.put("lifesteal-overheal-cap", s.lifestealOverhealCap());
-        map.put("reflect-percent", s.reflectPercent());
-        map.put("reflect-flat", s.reflectFlat());
-        map.put("cooldown", s.cooldown());
-        map.put("cooldown-left", baseCooldown);
-        map.put("cooldown-right", baseCooldown);
-        map.put("on-hit-percent-max", s.onHitPercentMax());
-        map.put("on-hit-interval", s.onHitIntervalSeconds());
-        map.put("mana-cost", s.manaCost());
-        map.put("stamina-cost", s.staminaCost());
-        map.put("dash-speed", s.dashSpeed());
-        map.put("dash-distance", s.dashDistance());
-        map.put("dash-y", s.dashY());
-        map.put("blink-distance", s.blinkDistance());
-        map.put("knockback", s.knockbackStrength());
-        map.put("pull-strength", s.pullStrength());
-        map.put("hop-velocity", s.hopVelocity());
-        map.put("hop-forward", s.hopForward());
-        map.put("slam-launch-velocity", s.slamLaunchVelocity());
-        map.put("slam-apex-ticks", s.slamApexTicks());
-        map.put("slam-down-velocity", s.slamDownVelocity());
-        map.put("slam-timeout-ticks", s.slamTimeoutTicks());
-        map.put("slam-uppercut-velocity", s.slamUppercutVelocity());
-        map.put("slam-self-bounce", s.slamSelfBounce());
-        map.put("range", s.range());
-        map.put("aim-range", s.aimRange());
-        map.put("aim-angle", s.aimAngle());
-        map.put("aoe-radius", s.aoeRadius());
-        map.put("aoe-damage-ratio", s.aoeDamageRatio());
-        map.put("slow-duration-ticks", s.slowDurationTicks());
-        map.put("slow-amplifier", s.slowAmplifier());
-        map.put("stun-duration-ticks", s.stunDurationTicks());
-        map.put("root-duration-ticks", s.rootDurationTicks());
-        map.put("damage-reduction", s.damageReduction());
-        map.put("shield", s.shieldAmount());
-        map.put("heal", s.healAmount());
-        map.put("heal-percent-of-max", s.healPercentOfMax());
-        map.put("hit-count", s.hitCount());
-        map.put("hit-interval-ticks", s.hitIntervalTicks());
-        map.put("max-targets", s.maxTargets());
-        map.put("particle", s.particle());
-        map.put("sound", s.sound());
-        map.put("sound-volume", s.soundVolume());
-        map.put("sound-pitch", s.soundPitch());
-        return map;
-    }
-
     public WeaponStats copy() {
         WeaponStats s = new WeaponStats();
         s.damage = damage;
@@ -451,7 +379,6 @@ public final class WeaponStats {
         s.cooldown = cooldown;
         s.cooldownLeft = cooldownLeft;
         s.cooldownRight = cooldownRight;
-        s.onHitPercentMax = onHitPercentMax;
         s.onHitIntervalSeconds = onHitIntervalSeconds;
         s.manaCost = manaCost;
         s.staminaCost = staminaCost;

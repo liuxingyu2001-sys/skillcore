@@ -3,7 +3,7 @@
 Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放技能。SkillCore 是唯一技能来源，没有独立的技能绑定/解锁系统。
 
 - 语言/API：Java 21（`maven.compiler.release=21`），Paper API `26.2.build.129-stable`，`api-version: '1.21'`
-- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.2.jar`）
+- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.4.jar`）
 - `groupId=com.skillcore`，`artifactId=skillcore`，主类 `com.skillcore.SkillCorePlugin`
 - 代码注释、配置注释均为中文，保持中文风格
 - 已在 Paper 26.2 服务端实机验证加载（自动注册 11 个技能类、7 把武器，含风暴战锤）
@@ -40,7 +40,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - `ClassScanner` — 注解扫描（支持 class 目录与 jar）
 - `src/main/java/com/skillcore/weapon/skills/` — 内置技能实现（每个类一个 `@WeaponSkillInfo`）；`StormHammerFx` 是风暴战锤专属分阶段特效，`SunfireBladeSkill` 是日炎之剑（命中附带最大生命百分比）
 - `src/main/java/com/skillcore/armor/` — 盔甲套装框架：`ArmorSlot`/`ArmorPiece`/`ArmorSet`/`ArmorStats`、`ArmorItems`（PDC 构建/识别）、`ArmorFactory`/`ArmorRegistry`/`ArmorManager`/`ArmorListener`、`ArmorSkill`/`ArmorContext`（盔甲技能接口）；`annotation/` 为 `@ArmorSkillInfo` 注解；`skills/` 下为盔甲技能实现（`SunfireArmorSkill` 日炎之甲）
-- `src/main/java/com/skillcore/config/` — `ConfigManager`（config.yml + skills/ + armor/ 目录加载与轮询 + 缺失配置键自动补全）
+- `src/main/java/com/skillcore/config/` — `ConfigManager`（config.yml + skills/ + armor/ 目录加载与轮询）
 - `src/main/java/com/skillcore/dummy/TestDummyManager.java` — 测试假人模块
 - `src/main/java/com/skillcore/hook/SkillCorePlaceholders.java` — PlaceholderAPI 占位符（PAPI 未安装时自动跳过）
 - `src/main/java/com/skillcore/hook/CraftEngineHook.java` — CraftEngine 模型软依赖（反射调用）
@@ -63,7 +63,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 ### 硬性约定
 
 - 技能逻辑里**不要硬编码数值**（伤害/冷却/位移/范围/特效等），一律从 `ctx.stats()` 读，方便 `skills/*.yml` 调平衡
-- 新增数值字段时同步改 `WeaponStats` 的字段、getter、`fromConfig`、`copy`（如需补全再加 `defaults`）四处；**缺失配置键会在加载时自动补全写回文件**（文本级插入，保留注释；内容键 lore/enchantments/right-skill/left-skill 无默认值不强制写入）
+- 新增数值字段时同步改 `WeaponStats` 的字段、getter、`fromConfig`、`copy` 四处；**不自动填充默认键**，每个技能文件只写自己用到的键，缺失键用代码内置默认值
 - 玩家来源技能伤害必须走 `ctx.damage(...)` / `SkillDamageUtils.damage(...)`，不要直接 `target.damage(x, player)`；**吸血自动生效**：`ctx.damage*` 内部按 `stats.lifesteal()` 统一吸血，技能里无需再手动 `healSelfByDamage`
 - 所有 AOE / 射线 / 吸附 / 路径伤害必须经过 `TargetFilter`（过滤友军/宠物/NPC/盔甲架/同队/PvP 禁用世界）
 - 触发键用 `SkillTrigger` 枚举；识别武器只认 PDC key `skillcore_weapon_id`（`WeaponItems.KEY_WEAPON_ID`），不要用 displayName 判断
@@ -120,7 +120,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 ## 添加一套新盔甲（含技能）
 
 1. 在 `src/main/java/com/skillcore/armor/skills/` 新建 `ArmorSkill` 实现（无参构造），标 `@ArmorSkillInfo(id = "TYPE", aliases = {...})`，覆写 `onEquip`/`onUnequip`/`cleanup`（可覆写 `onTick`）；有持久状态必须 `cleanup()`
-2. 无需手动注册：`ArmorFactory.autoRegister` 启动时扫描该包自动注册（`registerBuiltins()` 另有兜底）；覆写 `defaults()` 声明技能配置键默认值，缺失键会自动补全进 yml
+2. 无需手动注册：`ArmorFactory.autoRegister` 启动时扫描该包自动注册（`registerBuiltins()` 另有兜底）
 3. 在 `src/main/resources/armor/` 新建 `<setId>.yml`，写四件 + `skill: TYPE` + `set-bonus`（技能专用键从 `ArmorStats.custom*` 读取，如日炎之甲的 `sunfire-*`）
 
 ## 性能要点（100 玩家在线）
