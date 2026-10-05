@@ -67,12 +67,11 @@ public abstract class AbstractWeaponSkill implements WeaponSkill {
         return targets;
     }
 
-    /** 对当前目标的一次完整连击（伤害+吸血+命中特效）。 */
+    /** 对当前目标的一次完整连击（伤害+命中特效，吸血自动按 lifesteal 走）。 */
     protected double strike(WeaponContext ctx) {
         LivingEntity victim = ctx.aimTarget();
         if (victim == null) return 0;
         double dealt = ctx.damage(victim);
-        ctx.healSelfByDamage(dealt);
         ctx.hitFx(victim);
         return dealt;
     }
@@ -85,8 +84,7 @@ public abstract class AbstractWeaponSkill implements WeaponSkill {
         }
         List<LivingEntity> hit = ctx.aoeFrom(center, ctx.stats().aoeRadius());
         for (LivingEntity e : hit) {
-            double d = ctx.damage(e);
-            ctx.healSelfByDamage(d);
+            ctx.damage(e);
         }
         return hit;
     }
@@ -98,7 +96,6 @@ public abstract class AbstractWeaponSkill implements WeaponSkill {
         ctx.dashTowards(victim.getLocation());
         double dealt = ctx.damage(victim);
         ctx.knockback(victim);
-        ctx.healSelfByDamage(dealt);
         ctx.lineToTarget();
         return dealt;
     }
@@ -108,7 +105,6 @@ public abstract class AbstractWeaponSkill implements WeaponSkill {
         LivingEntity victim = ctx.aimTarget();
         if (victim == null) return 0;
         double dealt = ctx.damagePercent(victim);
-        ctx.healSelfByDamage(dealt);
         return dealt;
     }
 

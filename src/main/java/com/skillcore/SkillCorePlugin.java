@@ -18,7 +18,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * /sc give &lt;weaponId&gt; [player]   发放技能武器
  * /sc weapons                    列出武器
  * </pre>
- * 新武器: 写 WeaponSkill + registerSkill + weapons.yml 填数值。
+ * 新武器: 写 WeaponSkill + @WeaponSkillInfo 自动注册 + skills/ 目录下建一个 yml 填数值。
  */
 public final class SkillCorePlugin extends JavaPlugin {
 
@@ -31,6 +31,7 @@ public final class SkillCorePlugin extends JavaPlugin {
     private WeaponRegistry weaponRegistry;
     private WeaponManager weaponManager;
     private WeaponInputListener weaponInputListener;
+    private com.skillcore.dummy.TestDummyManager testDummyManager;
 
     public static SkillCorePlugin getInstance() {
         return instance;
@@ -42,6 +43,7 @@ public final class SkillCorePlugin extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         configManager.load();
+        configManager.startPolling();
 
         weaponFactory = new WeaponFactory();
         weaponRegistry = new WeaponRegistry();
@@ -52,7 +54,7 @@ public final class SkillCorePlugin extends JavaPlugin {
 
         // 只监听技能武器左右键 — 没有武器就没有技能
         combatListener = new CombatListener(this);
-        weaponInputListener = new WeaponInputListener(weaponManager);
+        weaponInputListener = new WeaponInputListener(this, weaponManager);
         getServer().getPluginManager().registerEvents(combatListener, this);
         getServer().getPluginManager().registerEvents(weaponInputListener, this);
 
@@ -62,28 +64,67 @@ public final class SkillCorePlugin extends JavaPlugin {
             getCommand("skillcore").setTabCompleter(command);
         }
 
+        registerPlaceholders();
+
+        testDummyManager = new com.skillcore.dummy.TestDummyManager(this);
+        getServer().getPluginManager().registerEvents(testDummyManager, this);
+
         getLogger().info("SkillCore enabled. Skill weapons: " + weaponCount);
+    }
+
+    /**
+     * 注册 PlaceholderAPI 占位符（未安装 PAPI 时自动跳过）。
+     */
+    private void registerPlaceholders() {
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") == null) {
+            return;
+        }
+        try {
+            new com.skillcore.hook.SkillCorePlaceholders(this).register();
+            getLogger().info("Hooked into PlaceholderAPI.");
+        } catch (Throwable ex) {
+            getLogger().warning("Failed to register PlaceholderAPI placeholders: " + ex.getMessage());
+        }
     }
 
     @Override
     public void onDisable() {
+        if (configManager != null) {
+            configManager.stopPolling();
+        }
+        if (weaponInputListener != null) {
+            weaponInputListener.cleanup();
+        }
+        if (weaponManager != null) {
+            weaponManager.cleanup();
+        }
+        com.skillcore.utils.CooldownUtils.cleanup();
         getLogger().info("SkillCore disabled.");
         instance = null;
     }
 
     /**
-     * 注册武器技能类型（以后新武器在这里加）。
+     * 注册武器技能类型。
+     * <p>
+     * 内置技能已在 {@link WeaponFactory} 构造时注册；这里再扫描
+     * {@code com.skillcore.weapon.skills} 包，自动注册所有带
+     * {@link com.skillcore.weapon.annotation.WeaponSkillInfo} 注解的技能类。
      */
     private void registerWeaponSkills() {
-        // 内置: STRIKE / DASH_DAMAGE / BLADE_DASH / SWEEP / CHARGE
-        //        PERCENT_STRIKE / CONTROL_STRIKE / BLINK_BURST / LIFESTEAL_STRIKE / THORNS
-        // weaponFactory.registerSkill("MY_TYPE", MyWeaponSkill::new);
+        weaponFactory.autoRegister(this, WeaponFactory.DEFAULT_SKILL_PACKAGE);
     }
 
     public void reloadAll() {
+        if (weaponManager != null) {
+            weaponManager.cleanup();
+        }
         configManager.reload();
         configManager.loadWeapons(weaponFactory, weaponRegistry);
         weaponManager.setDebug(configManager.isDebug());
+        if (testDummyManager != null) {
+            testDummyManager.reload();
+        }
+        configManager.startPolling();
     }
 
     public ConfigManager getConfigManager() {
@@ -108,5 +149,9 @@ public final class SkillCorePlugin extends JavaPlugin {
 
     public WeaponInputListener getWeaponInputListener() {
         return weaponInputListener;
+    }
+
+    public com.skillcore.dummy.TestDummyManager getTestDummyManager() {
+        return testDummyManager;
     }
 }

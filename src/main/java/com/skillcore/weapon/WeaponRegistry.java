@@ -80,6 +80,27 @@ public final class WeaponRegistry {
         return weapons.size();
     }
 
+    /**
+     * 清理所有已注册技能持有的状态（插件禁用 / 重载前调用）。
+     */
+    public void cleanup() {
+        for (Entry entry : weapons.values()) {
+            safeCleanup(entry.skill());
+            safeCleanup(entry.leftSkill());
+        }
+        weapons.clear();
+    }
+
+    private void safeCleanup(WeaponSkill skill) {
+        if (skill == null) return;
+        try {
+            skill.cleanup();
+        } catch (Exception ex) {
+            org.bukkit.Bukkit.getLogger().warning(
+                    "Failed to cleanup weapon skill " + skill.getClass().getName() + ": " + ex);
+        }
+    }
+
     public void clear() {
         weapons.clear();
     }

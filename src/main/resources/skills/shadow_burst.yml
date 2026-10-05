@@ -1,0 +1,20 @@
+# 影袭 — 闪现并爆发伤害
+id: shadow_burst
+display-name: "&5影袭"
+description: "&7闪现并爆发伤害"
+material: ENDER_PEARL
+right-skill: BLINK_BURST
+lore:
+  - "&7右键: 闪现 + 爆发"
+  - "&8冷却: {cooldown}s"
+  - "&7闪现: {blink}格  AOE: {aoe}"
+  - "&c伤害: {damage}  溅射: {aoe-ratio}%"
+stats:
+  damage: 14
+  blink-distance: 8
+  aoe-radius: 3.5
+  aoe-damage-ratio: 0.8
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 10.0
+  particle: PORTAL
+  sound: ENTITY_ENDERMAN_TELEPORT

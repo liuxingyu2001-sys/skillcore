@@ -1,0 +1,23 @@
+# 血刃 — 单体强击并回复生命（吸血比例由 lifesteal 统一生效）
+id: blood_blade
+display-name: "&c血刃"
+description: "&7造成伤害并回复生命"
+material: IRON_SWORD
+right-skill: LIFESTEAL_STRIKE
+glow: false
+lore:
+  - "&7右键: 吸血打击"
+  - "&8冷却: {cooldown}s"
+  - "&a吸血: {lifesteal}%"
+  - "&7伤害: {damage}  回复: {heal}"
+stats:
+  damage: 12
+  critical-chance: 0.15
+  critical-multiplier: 1.6
+  lifesteal: 0.35
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 3.0
+  heal: 2.0
+  range: 4.5
+  particle: CRIT_MAGIC
+  sound: ENTITY_PLAYER_ATTACK_CRIT

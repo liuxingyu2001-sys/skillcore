@@ -1,10 +1,10 @@
 package com.skillcore.weapon;
 
-import com.skillcore.api.SkillTrigger;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 一把技能武器的完整定义：外观 + 数值 + 技能绑定。
@@ -26,6 +26,9 @@ public final class SkillWeapon {
     private final WeaponStats stats;
     private final int customModelData;
     private final boolean glow;
+    private final String craftEngineModel;
+    private final boolean unbreakable;
+    private final Map<String, Integer> enchantments;
     private final List<String> defaultLoreFormat;
 
     public SkillWeapon(
@@ -40,7 +43,10 @@ public final class SkillWeapon {
             String leftSkillType,
             WeaponStats stats,
             int customModelData,
-            boolean glow
+            boolean glow,
+            String craftEngineModel,
+            boolean unbreakable,
+            Map<String, Integer> enchantments
     ) {
         this.id = id;
         this.displayName = displayName;
@@ -56,6 +62,9 @@ public final class SkillWeapon {
         this.stats = stats == null ? new WeaponStats() : stats;
         this.customModelData = customModelData;
         this.glow = glow;
+        this.craftEngineModel = craftEngineModel == null ? "" : craftEngineModel;
+        this.unbreakable = unbreakable;
+        this.enchantments = enchantments == null ? Map.of() : Map.copyOf(enchantments);
         this.defaultLoreFormat = List.of();
     }
 
@@ -78,6 +87,13 @@ public final class SkillWeapon {
     public WeaponStats stats() { return stats; }
     public int customModelData() { return customModelData; }
     public boolean glow() { return glow; }
+    /** CraftEngine 模型 ID（空表示使用原版材质 + CustomModelData）。 */
+    public String craftEngineModel() { return craftEngineModel; }
+    public boolean hasCraftEngineModel() { return craftEngineModel != null && !craftEngineModel.isEmpty(); }
+    /** 是否不可破坏。 */
+    public boolean unbreakable() { return unbreakable; }
+    /** 附魔：附魔 key（小写，如 wind_burst）→ 等级。 */
+    public Map<String, Integer> enchantments() { return enchantments; }
 
     /**
      * 生成武器物品（带 PDC 标记 weapon_id）。
@@ -93,7 +109,7 @@ public final class SkillWeapon {
         return new SkillWeapon(
                 id, displayName, description, material, lore,
                 rightTrigger, leftTrigger, rightSkillType, leftSkillType,
-                newStats, customModelData, glow
+                newStats, customModelData, glow, craftEngineModel, unbreakable, enchantments
         );
     }
 

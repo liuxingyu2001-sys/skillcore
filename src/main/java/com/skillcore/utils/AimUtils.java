@@ -37,7 +37,9 @@ public final class AimUtils {
      * @return first living entity hit, or null
      */
     public static LivingEntity raycastEntity(Player player, double maxDistance) {
-        return raycastEntity(player, maxDistance, e -> e instanceof LivingEntity && !e.equals(player));
+        return raycastEntity(player, maxDistance, e -> e instanceof LivingEntity living
+                && !living.equals(player)
+                && TargetFilter.isAttackable(player, living));
     }
 
     public static LivingEntity raycastEntity(Player player, double maxDistance, Predicate<Entity> filter) {

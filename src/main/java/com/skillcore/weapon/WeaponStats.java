@@ -45,6 +45,16 @@ public final class WeaponStats {
     private double knockbackStrength = 0.4;
     private double pullStrength = 0.5;
 
+    // ---- 跳跃 / 砸地位移（风暴战锤等） ----
+    private double hopVelocity = 0.55;
+    private double hopForward = 0.12;
+    private double slamLaunchVelocity = 0.9;
+    private int slamApexTicks = 10;
+    private double slamDownVelocity = -1.6;
+    private int slamTimeoutTicks = 80;
+    private double slamUppercutVelocity = 0.9;
+    private double slamSelfBounce = 0.35;
+
     // ---- 瞄准 / 范围 ----
     private double range = 6.0;
     private double aimRange = 12.0;
@@ -174,6 +184,14 @@ public final class WeaponStats {
     public double blinkDistance() { return blinkDistance; }
     public double knockbackStrength() { return knockbackStrength; }
     public double pullStrength() { return pullStrength; }
+    public double hopVelocity() { return hopVelocity; }
+    public double hopForward() { return hopForward; }
+    public double slamLaunchVelocity() { return slamLaunchVelocity; }
+    public int slamApexTicks() { return slamApexTicks; }
+    public double slamDownVelocity() { return slamDownVelocity; }
+    public int slamTimeoutTicks() { return slamTimeoutTicks; }
+    public double slamUppercutVelocity() { return slamUppercutVelocity; }
+    public double slamSelfBounce() { return slamSelfBounce; }
 
     public double range() { return range; }
     public double aimRange() { return aimRange; }
@@ -281,6 +299,14 @@ public final class WeaponStats {
         stats.blinkDistance = section.getDouble("blink-distance", stats.blinkDistance);
         stats.knockbackStrength = section.getDouble("knockback", section.getDouble("knockback-strength", stats.knockbackStrength));
         stats.pullStrength = section.getDouble("pull-strength", stats.pullStrength);
+        stats.hopVelocity = section.getDouble("hop-velocity", stats.hopVelocity);
+        stats.hopForward = section.getDouble("hop-forward", stats.hopForward);
+        stats.slamLaunchVelocity = section.getDouble("slam-launch-velocity", stats.slamLaunchVelocity);
+        stats.slamApexTicks = section.getInt("slam-apex-ticks", stats.slamApexTicks);
+        stats.slamDownVelocity = section.getDouble("slam-down-velocity", stats.slamDownVelocity);
+        stats.slamTimeoutTicks = section.getInt("slam-timeout-ticks", stats.slamTimeoutTicks);
+        stats.slamUppercutVelocity = section.getDouble("slam-uppercut-velocity", stats.slamUppercutVelocity);
+        stats.slamSelfBounce = section.getDouble("slam-self-bounce", stats.slamSelfBounce);
 
         stats.range = section.getDouble("range", stats.range);
         stats.aimRange = section.getDouble("aim-range", stats.aimRange);
@@ -342,6 +368,14 @@ public final class WeaponStats {
         s.blinkDistance = blinkDistance;
         s.knockbackStrength = knockbackStrength;
         s.pullStrength = pullStrength;
+        s.hopVelocity = hopVelocity;
+        s.hopForward = hopForward;
+        s.slamLaunchVelocity = slamLaunchVelocity;
+        s.slamApexTicks = slamApexTicks;
+        s.slamDownVelocity = slamDownVelocity;
+        s.slamTimeoutTicks = slamTimeoutTicks;
+        s.slamUppercutVelocity = slamUppercutVelocity;
+        s.slamSelfBounce = slamSelfBounce;
         s.range = range;
         s.aimRange = aimRange;
         s.aimAngle = aimAngle;

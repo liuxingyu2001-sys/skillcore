@@ -1,0 +1,23 @@
+# 疾风刺 — 向目标冲锋并突刺
+id: gale_lance
+display-name: "&a疾风刺"
+description: "&7向目标冲锋并突刺"
+material: IRON_SWORD
+right-skill: CHARGE
+lore:
+  - "&7右键: 冲锋突刺"
+  - "&8冷却: {cooldown}s"
+  - "&c伤害: {damage}  吸血: {lifesteal}%"
+  - "&7突进: {dash-distance}格  击退: {knockback}"
+stats:
+  damage: 13
+  dash-speed: 2.2
+  dash-distance: 8
+  knockback: 0.5
+  lifesteal: 0.1
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 4.0
+  aim-range: 14
+  aim-angle: 45
+  particle: CLOUD
+  sound: ENTITY_BREEZE_WIND_BURST

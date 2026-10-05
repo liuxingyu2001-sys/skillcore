@@ -1,6 +1,12 @@
 # SkillCore main configuration
 # API target: Paper 1.21 / Server 26.2
 
+# 群组服共享配置目录（留空 = 各服独立）
+# 所有指向同一目录的服务器共享 config.yml + skills/ 目录，编辑后在轮询间隔内自动重载
+shared_config_dir: ""
+# 共享配置变更检测间隔（秒，<=0 关闭轮询）
+config_poll_interval: 10
+
 debug: false
 
 # Global combat settings
@@ -13,18 +19,39 @@ combat:
   default-critical-chance: 0.1
   # Armor penetration default (0.0 - 1.0)
   default-armor-penetration: 0.0
+  # 这些世界里玩家之间无法互相造成技能伤害（PvP 禁用）
+  pvp-blocked-worlds: []
 
-# Cooldown display
+# 统一目标过滤 — 所有 AOE / 射线 / 路径伤害都会经过这里
+target-filter:
+  ignore-armor-stands: true
+  ignore-npcs: true
+  ignore-own-pets: true
+  ignore-same-team: true
+  # 与 combat.pvp-blocked-worlds 合并
+  pvp-blocked-worlds: []
+
+# 冷却显示/提示设置
+# 注意：技能冷却时长在 skills/<id>.yml 的 stats.cooldown 里设置，
+#       也可用游戏内命令 /sc cooldown <weaponId> <秒> 快速修改（会写回文件并重载）。
 cooldown:
   action-bar: true
   boss-bar: false
   message: true
+  # 冷却绕过权限是否生效（false = 所有人都吃冷却，包括 OP/管理员）
+  bypass-permission: false
+  # 冷却中提示（动作栏+音效）的最小间隔毫秒，避免狂按刷屏/音效轰炸
+  prompt-interval-ms: 750
 
 # Skill input binding (default trigger keys)
 input:
   # left | right | shift_left | shift_right | both
   default-right-click-skill: true
   default-left-click-skill: true
+  # 双击 Shift 判定窗口（毫秒）
+  double-shift-window-ms: 300
+  # 按住 Shift 多久后触发 HOLD_SHIFT（毫秒）
+  hold-shift-delay-ms: 250
 
 # Messages (supports & color codes and MiniMessage-like legacy)
 messages:
@@ -43,3 +70,23 @@ messages:
 logging:
   log-skill-cast: true
   log-damage-calc: false
+
+# PlaceholderAPI 占位符文案
+placeholders:
+  ready: "&a就绪"
+  no-weapon: ""
+
+# 特效全局开关（不影响伤害，只影响视觉/音效）
+effects:
+  # 总开关（关闭后所有技能特效/音效不播放）
+  enabled: true
+  # 粒子开关
+  particles: true
+  # 粒子密度倍率（0 = 不画，1 = 正常，>1 更密集）
+  density: 1.0
+  # 粒子不受支持时的降级粒子
+  fallback-particle: ENCHANT
+  # ItemDisplay 显示物平滑插值（1=瞬移跳变，越大越顺滑，上限 59）
+  display:
+    teleport-duration: 3
+    interpolation-duration: 2

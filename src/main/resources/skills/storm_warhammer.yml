@@ -1,0 +1,45 @@
+# 风暴战锤 (GJB2377 定制)
+#   右键：向上小跳（少量向前）
+#   潜行 + 右键：向上跃起随后砸地，落地 AOE（无目标也能释放）
+id: storm_warhammer
+display-name: "<gradient:#C9A7FF:#F2E6FF>风暴战锤</gradient>"
+description: "<gradient:#C9A7FF:#7EE8FF>GJB2377 定制 · 驾驭风暴的破坏者</gradient>"
+material: MACE
+unbreakable: true
+enchantments:
+  wind_burst: 5
+right-skill: STORM_HAMMER
+right-trigger: RIGHT_CLICK
+glow: false
+lore:
+  - "<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━</dark_gray>"
+  - "<#C9A7FF>⚡ 风暴之力</#C9A7FF> <dark_gray>·</dark_gray> <gray>挥动间风云变色</gray>"
+  - "<gray>重锤落地，天地为之震颤</gray>"
+  - ""
+  - "<#7EE8FF>▶ 右键</#7EE8FF> <gray>风跃 · 向上腾空</gray>"
+  - "<#7EE8FF>▶ 潜行 + 右键</#7EE8FF> <gray>天坠 · 跃起后砸地</gray>"
+  - "<gray>   落地引发范围雷爆，震碎大地</gray>"
+  - ""
+  - "<#F2E6FF>伤害 <#C9A7FF>{damage}</#C9A7FF> <dark_gray>│</dark_gray> <#F2E6FF>范围 <#7EE8FF>{aoe}</#7EE8FF></#F2E6FF>"
+  - "<#F2E6FF>冷却 <#FFD75C>{cooldown}s</#FFD75C></#F2E6FF>"
+  - ""
+  - "<dark_gray>GJB2377 定制 · 编号 2377</dark_gray>"
+stats:
+  damage: 18
+  critical-chance: 0.1
+  critical-multiplier: 1.5
+  armor-penetration: 0.1
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 8.0
+  aoe-radius: 4.0
+  knockback: 0.6
+  hop-velocity: 0.55
+  hop-forward: 0.12
+  slam-launch-velocity: 0.9
+  slam-apex-ticks: 10
+  slam-down-velocity: -1.6
+  slam-timeout-ticks: 80
+  slam-uppercut-velocity: 0.9
+  slam-self-bounce: 0.35
+  particle: ELECTRIC_SPARK
+  sound: ITEM_MACE_SMASH_GROUND

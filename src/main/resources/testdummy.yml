@@ -1,0 +1,11 @@
+# SkillCore 测试假人配置
+# 修改后执行 /sc reload 生效（假人不会自动重生，需重新 spawn）
+dummy:
+  # 假人显示名（支持 & 颜色码）
+  name: "&c测试假人"
+  # 默认最大生命值
+  health: 100.0
+  # 关闭 AI（不移动、不攻击）
+  no-ai: true
+  # 静音
+  silent: true

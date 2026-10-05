@@ -114,14 +114,14 @@ public final class PercentageDamageUtils {
     public static void dealPercentOfMaxHealth(LivingEntity attacker, LivingEntity target, double percent, double maxDamage) {
         double damage = ofMaxHealthCapped(target, percent, maxDamage);
         if (damage > 0) {
-            DamageUtils.damage(target, damage, attacker);
+            SkillDamageUtils.damage(target, damage, attacker);
         }
     }
 
     public static void dealPercentOfCurrentHealth(LivingEntity attacker, LivingEntity target, double percent, double maxDamage) {
         double damage = ofCurrentHealthCapped(target, percent, maxDamage);
         if (damage > 0) {
-            DamageUtils.damage(target, damage, attacker);
+            SkillDamageUtils.damage(target, damage, attacker);
         }
     }
 
@@ -131,7 +131,7 @@ public final class PercentageDamageUtils {
             damage = Math.min(damage, maxDamage);
         }
         if (damage > 0) {
-            DamageUtils.damage(target, damage, attacker);
+            SkillDamageUtils.damage(target, damage, attacker);
         }
     }
 

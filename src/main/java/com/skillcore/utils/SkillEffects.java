@@ -31,7 +31,7 @@ public final class SkillEffects {
      * @return 实际造成的伤害
      */
     public static double damageAndLifesteal(LivingEntity caster, LivingEntity target, double damage, double lifestealPercent) {
-        DamageUtils.damage(target, damage, caster);
+        SkillDamageUtils.damage(target, damage, caster, "skill-effects");
         LifestealUtils.healByDamagePercent(caster, damage, lifestealPercent);
         return damage;
     }
@@ -50,7 +50,7 @@ public final class SkillEffects {
     ) {
         double dealt = DamageUtils.calculateFinalDamage(
                 baseDamage, 0, 1.0, criticalChance, criticalMultiplier, armorPenetration, target);
-        DamageUtils.damage(target, dealt, caster);
+        SkillDamageUtils.damage(target, dealt, caster, "skill-effects");
         if (lifestealPercent > 0) {
             LifestealUtils.healByDamagePercent(caster, dealt, lifestealPercent);
         }
@@ -81,11 +81,10 @@ public final class SkillEffects {
      * @return 被击中的实体列表
      */
     public static List<LivingEntity> aoeAround(Location center, double radius, double damage, LivingEntity caster) {
-        List<LivingEntity> targets = AreaUtils.exclude(
-                AreaUtils.getSphere(center, radius, DamageUtils::isAlive),
-                caster);
+        List<LivingEntity> targets = TargetFilter.filter(caster,
+                AreaUtils.getSphere(center, radius, e -> TargetFilter.isAttackable(caster, e)));
         for (LivingEntity target : targets) {
-            DamageUtils.damage(target, damage, caster);
+            SkillDamageUtils.damage(target, damage, caster, "skill-effects");
         }
         return targets;
     }
@@ -94,9 +93,8 @@ public final class SkillEffects {
      * 对半径内敌人造成百分比最大生命伤害。
      */
     public static List<LivingEntity> aoePercentAround(Location center, double radius, double percent, double maxDamage, LivingEntity caster) {
-        List<LivingEntity> targets = AreaUtils.exclude(
-                AreaUtils.getSphere(center, radius, DamageUtils::isAlive),
-                caster);
+        List<LivingEntity> targets = TargetFilter.filter(caster,
+                AreaUtils.getSphere(center, radius, e -> TargetFilter.isAttackable(caster, e)));
         for (LivingEntity target : targets) {
             PercentageDamageUtils.dealPercentOfMaxHealth(caster, target, percent, maxDamage);
         }
@@ -202,7 +200,7 @@ public final class SkillEffects {
             return;
         }
         for (LivingEntity target : targets) {
-            DamageUtils.damage(target, damage, caster);
+            SkillDamageUtils.damage(target, damage, caster, "skill-effects");
         }
     }
 

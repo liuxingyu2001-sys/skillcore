@@ -1,0 +1,26 @@
+# 雷霆重击 — 重击并眩晕目标
+id: thunder_hammer
+display-name: "&b雷霆重击"
+description: "&7重击并眩晕目标"
+material: NETHERITE_AXE
+right-skill: CONTROL_STRIKE
+left-skill: SWEEP
+lore:
+  - "&7右键: 眩晕打击"
+  - "&7左键: 横扫"
+  - "&8冷却: {cooldown}s"
+  - "&c伤害: {damage}  眩晕: {stun-ticks}t"
+  - "&7AOE: {aoe}  溅射: {aoe-ratio}%"
+stats:
+  damage: 18
+  critical-chance: 0.1
+  critical-multiplier: 2.0
+  stun-duration-ticks: 30
+  knockback: 0.6
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 6.0
+  range: 5.5
+  aoe-radius: 3.0
+  aoe-damage-ratio: 0.6
+  particle: ELECTRIC_SPARK
+  sound: ENTITY_LIGHTNING_BOLT_THUNDER

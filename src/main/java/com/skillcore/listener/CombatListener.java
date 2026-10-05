@@ -86,7 +86,7 @@ public final class CombatListener implements Listener {
             // also check buff style
             if (percent > 0) {
                 double healed = LifestealUtils.healByDamagePercent(player, finalDamage, percent);
-                if (healed > 0 && plugin.getConfig().getBoolean("logging.log-damage-calc", false)) {
+                if (healed > 0 && plugin.getConfigManager().getConfig().getBoolean("logging.log-damage-calc", false)) {
                     plugin.getLogger().info(String.format(
                             "Lifesteal %s -> %s damage=%.2f healed=%.2f",
                             player.getName(), victim.getName(), finalDamage, healed));
@@ -126,7 +126,7 @@ public final class CombatListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamageMonitor(EntityDamageEvent event) {
-        if (!plugin.getConfig().getBoolean("logging.log-damage-calc", false)) {
+        if (!plugin.getConfigManager().getConfig().getBoolean("logging.log-damage-calc", false)) {
             return;
         }
         LivingEntity victim = DamageUtils.getVictim(event);

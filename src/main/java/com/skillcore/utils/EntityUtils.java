@@ -162,19 +162,14 @@ public final class EntityUtils {
     }
 
     /**
-     * Whether target is a valid enemy of caster (simple: not same player, not tamed if owner).
+     * Whether target is a valid enemy of caster.
+     * 统一走 {@link TargetFilter}（过滤友军/宠物/NPC/盔甲架/PvP 禁用世界）。
      */
     public static boolean isEnemy(LivingEntity caster, LivingEntity target) {
         if (caster == null || target == null || caster.equals(target)) {
             return false;
         }
-        if (!isValid(target)) {
-            return false;
-        }
-        if (target instanceof Player player && player.getGameMode() == GameMode.SPECTATOR) {
-            return false;
-        }
-        return true;
+        return !TargetFilter.shouldIgnoreTarget(caster, target);
     }
 
     /**

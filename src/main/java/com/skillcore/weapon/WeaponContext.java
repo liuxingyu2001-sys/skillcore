@@ -1,5 +1,7 @@
 package com.skillcore.weapon;
 
+import com.skillcore.effect.EffectContext;
+import com.skillcore.effect.SkillEffect;
 import com.skillcore.utils.AimUtils;
 import com.skillcore.utils.DamageUtils;
 import com.skillcore.utils.DisplacementUtils;
@@ -8,7 +10,9 @@ import com.skillcore.utils.LifestealUtils;
 import com.skillcore.utils.ParticleUtils;
 import com.skillcore.utils.PercentageDamageUtils;
 import com.skillcore.utils.PotionUtils;
+import com.skillcore.utils.SkillDamageUtils;
 import com.skillcore.utils.SoundUtils;
+import com.skillcore.utils.TargetFilter;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.LivingEntity;
@@ -132,8 +136,9 @@ public final class WeaponContext {
         if (victim == null || !DamageUtils.isAlive(victim)) return 0;
         double dealt = stats.calculateTotal(victim, power);
         if (dealt > 0) {
-            DamageUtils.damage(victim, dealt, player);
+            SkillDamageUtils.damage(victim, dealt, player, skillSource());
             hitFx(victim);
+            applyLifesteal(dealt);
         }
         return dealt;
     }
@@ -142,7 +147,10 @@ public final class WeaponContext {
     public double damagePhysical(LivingEntity victim) {
         if (victim == null || !DamageUtils.isAlive(victim)) return 0;
         double dealt = stats.calculateHit(victim, power);
-        if (dealt > 0) DamageUtils.damage(victim, dealt, player);
+        if (dealt > 0) {
+            SkillDamageUtils.damage(victim, dealt, player, skillSource());
+            applyLifesteal(dealt);
+        }
         return dealt;
     }
 
@@ -150,7 +158,10 @@ public final class WeaponContext {
     public double damagePercent(LivingEntity victim) {
         if (victim == null || !DamageUtils.isAlive(victim)) return 0;
         double dealt = stats.calculatePercentBonus(victim);
-        if (dealt > 0) DamageUtils.damage(victim, dealt, player);
+        if (dealt > 0) {
+            SkillDamageUtils.damage(victim, dealt, player, skillSource());
+            applyLifesteal(dealt);
+        }
         return dealt;
     }
 
@@ -161,8 +172,24 @@ public final class WeaponContext {
                 baseDamage, stats.damageScaling(), power,
                 stats.criticalChance(), stats.criticalMultiplier(),
                 stats.armorPenetration(), victim);
-        if (dealt > 0) DamageUtils.damage(victim, dealt, player);
+        if (dealt > 0) {
+            SkillDamageUtils.damage(victim, dealt, player, skillSource());
+            applyLifesteal(dealt);
+        }
         return dealt;
+    }
+
+    /** 按武器 lifesteal 比例自动吸血（所有伤害统一入口）。 */
+    private void applyLifesteal(double dealt) {
+        double percent = stats.lifesteal();
+        if (percent > 0) {
+            LifestealUtils.healByDamagePercent(player, dealt, percent);
+        }
+    }
+
+    /** 当前技能来源 id（用于技能伤害标记）。 */
+    public String skillSource() {
+        return weapon != null ? weapon.id() : null;
     }
 
     /**
@@ -189,9 +216,10 @@ public final class WeaponContext {
     /** AOE：对目标周围按 aoe-damage-ratio 造成溅射。 */
     public List<LivingEntity> aoeFrom(LivingEntity center, double radius) {
         double r = radius > 0 ? radius : stats.aoeRadius();
-        List<LivingEntity> list = com.skillcore.utils.AreaUtils.exclude(
-                com.skillcore.utils.AreaUtils.getSphere(center.getLocation(), r, DamageUtils::isAlive),
-                player, center);
+        List<LivingEntity> list = TargetFilter.filter(player,
+                com.skillcore.utils.AreaUtils.getSphere(center.getLocation(), r,
+                        e -> TargetFilter.isAttackable(player, e)));
+        list.remove(center);
         for (LivingEntity e : list) {
             damageCustom(e, stats.damage() * stats.aoeDamageRatio());
         }
@@ -201,9 +229,9 @@ public final class WeaponContext {
     /** AOE：以瞄准点为中心。 */
     public List<LivingEntity> aoeAtAim(double radius) {
         double r = radius > 0 ? radius : stats.aoeRadius();
-        List<LivingEntity> list = com.skillcore.utils.AreaUtils.exclude(
-                com.skillcore.utils.AreaUtils.getSphere(aimLocation(), r, DamageUtils::isAlive),
-                player);
+        List<LivingEntity> list = TargetFilter.filter(player,
+                com.skillcore.utils.AreaUtils.getSphere(aimLocation(), r,
+                        e -> TargetFilter.isAttackable(player, e)));
         for (LivingEntity e : list) {
             damageCustom(e, stats.damage() * stats.aoeDamageRatio());
         }
@@ -284,6 +312,31 @@ public final class WeaponContext {
     // ------------------------------------------------------------------
     // 特效
     // ------------------------------------------------------------------
+
+    /**
+     * 播放一个特效（以施法者眼睛位置为起点，带朝向/施法者/目标）。
+     * <pre>
+     * ctx.play(Effects.ring(Particle.END_ROD, 2.0, 24));
+     * </pre>
+     */
+    public void play(SkillEffect effect) {
+        if (effect == null) return;
+        effect.play(effectContext());
+    }
+
+    /** 在指定位置播放特效。 */
+    public void playAt(SkillEffect effect, Location location) {
+        if (effect == null) return;
+        effect.play(EffectContext.of(location).withCaster(player).withTarget(target));
+    }
+
+    /** 当前特效上下文（位置=眼睛，朝向=视线）。 */
+    public EffectContext effectContext() {
+        return EffectContext.of(player.getEyeLocation())
+                .withDirection(player.getLocation().getDirection())
+                .withCaster(player)
+                .withTarget(hasTarget() ? target : null);
+    }
 
     public void hitFx(LivingEntity victim) {
         ParticleUtils.hitMarker(victim, parseParticle(stats.particle()));

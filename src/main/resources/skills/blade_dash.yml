@@ -1,0 +1,38 @@
+# 利刃突刺 — 右键向前突刺，斩击路径上的敌人（吸血由 lifesteal 统一生效）
+id: blade_dash
+display-name: "&6利刃突刺"
+description: "&7右键向前突刺，斩击路径上的敌人"
+material: NETHERITE_SWORD
+craftengine_model: ""
+right-skill: BLADE_DASH
+left-skill: STRIKE
+right-trigger: RIGHT_CLICK
+left-trigger: LEFT_CLICK
+glow: true
+custom-model-data: 0
+lore:
+  - "&7右键: 向前突刺并斩击"
+  - "&7左键: 普通强击"
+  - "&8冷却: {cooldown}s"
+  - "&c伤害: {damage}  &a吸血: {lifesteal}%"
+  - "&7暴击: {crit}% x{crit-multi}  穿透: {pen}%"
+stats:
+  damage: 15
+  damage-scaling: 1.5
+  critical-chance: 0.2
+  critical-multiplier: 1.8
+  armor-penetration: 0.15
+  lifesteal: 0.15
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 5.0
+  dash-speed: 1.8
+  dash-distance: 5.0
+  dash-y: 0.12
+  range: 5.0
+  aim-range: 10.0
+  knockback: 0.35
+  slow-duration-ticks: 40
+  slow-amplifier: 1
+  max-targets: 4
+  particle: CRIT
+  sound: ENTITY_PLAYER_ATTACK_SWEEP

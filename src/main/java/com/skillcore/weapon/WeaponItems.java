@@ -1,9 +1,10 @@
 package com.skillcore.weapon;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import com.skillcore.utils.TextUtils;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -19,43 +20,31 @@ import java.util.List;
 public final class WeaponItems {
 
     public static final String KEY_WEAPON_ID = "skillcore_weapon_id";
-    private static final LegacyComponentSerializer LEGACY =
-            LegacyComponentSerializer.legacyAmpersand();
 
     private WeaponItems() {
     }
 
     /**
      * 根据定义生成物品（lore 自动填入数值变量）。
+     * <p>
+     * 若配置了 {@code craftengine_model} 且已安装 CraftEngine，则用该模型作为底物，
+     * 否则降级原版材质 + CustomModelData。
      */
     public static ItemStack create(SkillWeapon weapon) {
         if (weapon == null) return new ItemStack(Material.AIR);
-        ItemStack item = new ItemStack(weapon.material(), 1);
+        ItemStack item = null;
+        boolean ceApplied = false;
+        if (weapon.hasCraftEngineModel()) {
+            item = com.skillcore.hook.CraftEngineHook.buildItem(weapon.craftEngineModel());
+            ceApplied = item != null;
+        }
+        if (item == null) {
+            item = new ItemStack(weapon.material(), 1);
+        }
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
-        meta.displayName(LEGACY.deserialize(
-                weapon.displayName() == null ? weapon.id() : weapon.displayName()));
-
-        List<String> rawLore = weapon.lore();
-        List<String> loreLines = (rawLore == null || rawLore.isEmpty())
-                ? WeaponLore.defaultLore(weapon)
-                : WeaponLore.applyAll(rawLore, weapon);
-
-        List<Component> lore = new ArrayList<>();
-        for (String line : loreLines) {
-            lore.add(LEGACY.deserialize(line));
-        }
-        if (!lore.isEmpty()) {
-            meta.lore(lore);
-        }
-        if (weapon.customModelData() > 0) {
-            meta.setCustomModelData(weapon.customModelData());
-        }
-        if (weapon.glow()) {
-            meta.addEnchant(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        }
+        applyMeta(meta, weapon, ceApplied);
         item.setItemMeta(meta);
 
         Plugin plugin = com.skillcore.SkillCorePlugin.getInstance();
@@ -66,7 +55,7 @@ public final class WeaponItems {
     }
 
     /**
-     * 手动更新物品 lore（管理员命令用）— 按当前 weapons.yml 数值刷新占位符。
+     * 手动更新物品 lore（管理员命令用）— 按当前 skills/ 目录数值刷新占位符。
      *
      * @return true 表示物品是技能武器且已更新
      */
@@ -75,26 +64,77 @@ public final class WeaponItems {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
 
-        // 显示名也可含变量
-        meta.displayName(LEGACY.deserialize(
-                WeaponLore.apply(weapon.displayName() == null ? weapon.id() : weapon.displayName(), weapon)));
+        applyMeta(meta, weapon, com.skillcore.hook.CraftEngineHook.isCustomItem(item));
+        item.setItemMeta(meta);
+        return true;
+    }
+
+    /**
+     * 统一写入显示名（MiniMessage / & 兼容）、lore、附魔、不可破坏、模型。
+     */
+    private static void applyMeta(ItemMeta meta, SkillWeapon weapon, boolean ceApplied) {
+        String name = weapon.displayName() == null ? weapon.id() : weapon.displayName();
+        meta.displayName(TextUtils.parse(WeaponLore.apply(name, weapon)));
 
         List<String> rawLore = weapon.lore();
         List<String> loreLines = (rawLore == null || rawLore.isEmpty())
                 ? WeaponLore.defaultLore(weapon)
                 : WeaponLore.applyAll(rawLore, weapon);
-
         List<Component> lore = new ArrayList<>();
         for (String line : loreLines) {
-            lore.add(LEGACY.deserialize(line));
+            lore.add(TextUtils.parse(line));
         }
-        meta.lore(lore);
+        if (!lore.isEmpty()) {
+            meta.lore(lore);
+        }
 
-        if (weapon.customModelData() > 0) {
+        // CE 模型用 item_model 组件，不再叠加 CustomModelData
+        if (!ceApplied && weapon.customModelData() > 0) {
             meta.setCustomModelData(weapon.customModelData());
         }
-        item.setItemMeta(meta);
-        return true;
+        if (weapon.unbreakable()) {
+            meta.setUnbreakable(true);
+        }
+
+        boolean hasEnchants = applyEnchantments(meta, weapon);
+        if (weapon.glow() && !hasEnchants) {
+            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
+    }
+
+    /**
+     * 按配置写入附魔（允许超过原版上限，如 wind_burst: 5）。
+     *
+     * @return 是否写入了至少一个附魔
+     */
+    private static boolean applyEnchantments(ItemMeta meta, SkillWeapon weapon) {
+        if (weapon.enchantments().isEmpty()) return false;
+        boolean any = false;
+        for (var entry : weapon.enchantments().entrySet()) {
+            Enchantment enchantment = resolveEnchantment(entry.getKey());
+            if (enchantment != null && entry.getValue() > 0) {
+                meta.addEnchant(enchantment, entry.getValue(), true);
+                any = true;
+            }
+        }
+        return any;
+    }
+
+    /**
+     * 解析附魔 key（如 wind_burst / minecraft:sharpness）。
+     */
+    public static Enchantment resolveEnchantment(String key) {
+        if (key == null || key.isEmpty()) return null;
+        NamespacedKey namespacedKey = key.contains(":")
+                ? NamespacedKey.fromString(key)
+                : NamespacedKey.minecraft(key.toLowerCase());
+        if (namespacedKey == null) return null;
+        try {
+            return org.bukkit.Registry.ENCHANTMENT.get(namespacedKey);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     /**

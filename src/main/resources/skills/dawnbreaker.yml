@@ -1,0 +1,21 @@
+# 破晓 — 百分比生命打击
+id: dawnbreaker
+display-name: "&e破晓"
+description: "&7对目标造成最大生命值 8% 的伤害"
+material: GOLDEN_SWORD
+right-skill: PERCENT_STRIKE
+lore:
+  - "&7右键: 百分比生命打击"
+  - "&8冷却: {cooldown}s"
+  - "&c最大生命 {percent-max}% 伤害"
+  - "&7伤害: {damage}  穿透: {pen}%"
+stats:
+  damage: 4
+  percent-max-health: 0.08
+  percent-damage-cap: 50
+  armor-penetration: 0.4
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  cooldown: 8.0
+  aim-range: 12
+  particle: END_ROD
+  sound: ENTITY_EVOKER_CAST_SPELL

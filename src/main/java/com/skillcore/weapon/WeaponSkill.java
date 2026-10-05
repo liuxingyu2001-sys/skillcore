@@ -38,6 +38,31 @@ public interface WeaponSkill {
     }
 
     /**
+     * 双击 Shift。
+     */
+    default void onDoubleShift(WeaponContext ctx) {
+    }
+
+    /**
+     * 按住 Shift 达到阈值。
+     */
+    default void onHoldShift(WeaponContext ctx) {
+    }
+
+    /**
+     * 松开 Shift。
+     */
+    default void onReleaseShift(WeaponContext ctx) {
+    }
+
+    /**
+     * 插件禁用 / 武器重载时清理该技能持有的状态。
+     * 有持久状态（BossBar、状态表、BukkitRunnable 等）的技能必须覆写。
+     */
+    default void cleanup() {
+    }
+
+    /**
      * 命中目标后（近战附带效果）。
      */
     default void onHit(WeaponContext ctx, org.bukkit.entity.LivingEntity victim, double damage) {
