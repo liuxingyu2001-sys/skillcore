@@ -31,6 +31,12 @@ public final class MessageUtils {
         return input == null ? "" : ChatColor.stripColor(color(input));
     }
 
+    /**
+     * 解析 {@code &} 颜色码为 Component。
+     * <p>
+     * 入参必须是<b>未翻译</b>的原始字符串（保留 {@code &}）：{@code legacyAmpersand()} 只认 {@code &}，
+     * 传 {@link #color(String)} 处理过的 {@code §} 文本会原样显示成 "§c"。
+     */
     public static Component component(String input) {
         return LEGACY.deserialize(input == null ? "" : input);
     }
@@ -59,7 +65,8 @@ public final class MessageUtils {
         if (player == null || message == null) {
             return;
         }
-        player.sendActionBar(component(color(message)));
+        // 直接交给 component 解析 & 码；不能再先 color() 翻成 §，否则动作栏会原样显示 "§c冷却中"
+        player.sendActionBar(component(message));
     }
 
     /**
@@ -70,8 +77,8 @@ public final class MessageUtils {
             return;
         }
         player.showTitle(net.kyori.adventure.title.Title.title(
-                component(color(title == null ? "" : title)),
-                component(color(subtitle == null ? "" : subtitle)),
+                component(title == null ? "" : title),
+                component(subtitle == null ? "" : subtitle),
                 net.kyori.adventure.title.Title.Times.times(
                         net.kyori.adventure.util.Ticks.duration(fadeIn),
                         net.kyori.adventure.util.Ticks.duration(stay),

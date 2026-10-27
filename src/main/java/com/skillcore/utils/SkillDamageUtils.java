@@ -34,6 +34,11 @@ public final class SkillDamageUtils {
             return 0.0;
         }
         markSkillDamage(target, skill);
+        // 技能伤害是连击/多段语义，必须先清掉原版受击无敌帧：否则同目标第 2 段伤害会被
+        // 原版直接丢弃（hit-interval-ticks 常态只有 4 tick），吸血/特效/连击计数却照算。
+        if (target.getNoDamageTicks() > 0) {
+            target.setNoDamageTicks(0);
+        }
         if (source != null) {
             DamageUtils.damage(target, amount, source);
         } else {

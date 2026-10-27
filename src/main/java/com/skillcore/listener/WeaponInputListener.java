@@ -185,6 +185,13 @@ public final class WeaponInputListener implements Listener {
         com.skillcore.utils.CooldownUtils.clearAll(id);
     }
 
+    /** 死亡时清掉双击 / 按住状态，避免复活后 still-holding 状态误触发。 */
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        clearState(event.getEntity().getUniqueId());
+        weaponManager.clearPlayerState(event.getEntity().getUniqueId());
+    }
+
     private void clearState(UUID playerId) {
         SneakState state = sneakStates.remove(playerId);
         if (state != null) {

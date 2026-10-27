@@ -376,8 +376,9 @@ public final class WeaponStats {
      * 直接参与运算会导致伤害 NaN、速度设置抛异常，这里统一收敛到安全范围。
      */
     private void sanitize() {
-        damage = nonNegative(damage, 0.0);
-        damageScaling = nonNegative(damageScaling, 1.0);
+        // 上限定得比较宽（正常配置远低于此），只拦「配置写错一个数量级」导致的秒杀 / 无敌
+        damage = clamp(damage, 0.0, 10_000.0);
+        damageScaling = clamp(damageScaling, 0.0, 1_000.0);
         criticalChance = clamp(criticalChance, 0.0, 1.0);
         criticalMultiplier = Math.max(1.0, finite(criticalMultiplier, 1.5));
         armorPenetration = clamp(armorPenetration, 0.0, 1.0);
@@ -386,24 +387,24 @@ public final class WeaponStats {
         percentMaxHealth = clamp(percentMaxHealth, 0.0, 1.0);
         percentCurrentHealth = clamp(percentCurrentHealth, 0.0, 1.0);
         percentMissingHealth = clamp(percentMissingHealth, 0.0, 1.0);
-        percentDamageCap = nonNegative(percentDamageCap, 0.0);
+        percentDamageCap = clamp(percentDamageCap, 0.0, 100_000.0);
 
         lifesteal = clamp(lifesteal, 0.0, 1.0);
-        lifestealOverhealCap = nonNegative(lifestealOverhealCap, 0.0);
+        lifestealOverhealCap = clamp(lifestealOverhealCap, 0.0, 10_000.0);
         reflectPercent = clamp(reflectPercent, 0.0, 1.0);
-        reflectFlat = nonNegative(reflectFlat, 0.0);
+        reflectFlat = clamp(reflectFlat, 0.0, 10_000.0);
         reflectDurationTicks = clamp(reflectDurationTicks, 0, 20 * 60 * 10);
 
-        cooldown = nonNegative(cooldown, 0.0);
+        cooldown = clamp(cooldown, 0.0, 86_400.0);
         // -1 表示「未单独配置，回退 cooldown」，保留；其他负数按 0 处理
-        cooldownLeft = cooldownLeft < 0 ? -1.0 : nonNegative(cooldownLeft, 0.0);
-        cooldownRight = cooldownRight < 0 ? -1.0 : nonNegative(cooldownRight, 0.0);
+        cooldownLeft = cooldownLeft < 0 ? -1.0 : clamp(cooldownLeft, 0.0, 86_400.0);
+        cooldownRight = cooldownRight < 0 ? -1.0 : clamp(cooldownRight, 0.0, 86_400.0);
         manaCost = nonNegative(manaCost, 0.0);
         staminaCost = nonNegative(staminaCost, 0.0);
-        onHitIntervalSeconds = nonNegative(onHitIntervalSeconds, 0.0);
+        onHitIntervalSeconds = clamp(onHitIntervalSeconds, 0.0, 60.0);
 
         dashSpeed = clamp(dashSpeed, 0.0, 10.0);
-        dashDistance = nonNegative(dashDistance, 0.0);
+        dashDistance = clamp(dashDistance, 0.0, 100.0);
         dashY = clamp(dashY, -5.0, 5.0);
         blinkDistance = clamp(blinkDistance, 0.0, 64.0);
         knockbackStrength = clamp(knockbackStrength, 0.0, 10.0);
@@ -430,8 +431,8 @@ public final class WeaponStats {
         rootDurationTicks = clamp(rootDurationTicks, 0, 20 * 60 * 10);
 
         damageReduction = clamp(damageReduction, 0.0, 1.0);
-        shieldAmount = nonNegative(shieldAmount, 0.0);
-        healAmount = nonNegative(healAmount, 0.0);
+        shieldAmount = clamp(shieldAmount, 0.0, 10_000.0);
+        healAmount = clamp(healAmount, 0.0, 10_000.0);
         healPercentOfMax = clamp(healPercentOfMax, 0.0, 1.0);
 
         hitCount = clamp(hitCount, 1, 20);

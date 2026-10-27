@@ -112,9 +112,11 @@ public final class CombatListener implements Listener {
         }
 
         // --- lifesteal ---
-        if (damager instanceof Player player) {
+        // 技能伤害的吸血由 WeaponContext 统一处理（武器 lifesteal 与盔甲 lifesteal 取较大值），
+        // 这里只处理普通伤害，否则同一次技能命中会吸两次血。
+        if (damager instanceof Player player && !com.skillcore.utils.SkillDamageUtils.isSkillDamage(victim)) {
             double percent = getLifesteal(player);
-            // 叠加盔甲套装吸血（取较大值，避免与技能自带吸血重复叠加）
+            // 叠加盔甲套装吸血（取较大值，避免与其他来源重复叠加）
             if (attackerArmor != null) {
                 percent = Math.max(percent, attackerArmor.lifesteal());
             }
@@ -126,11 +128,16 @@ public final class CombatListener implements Listener {
                             player.getName(), victim.getName(), finalDamage, healed));
                 }
             }
-            // 武器命中钩子：普通近战命中附带效果（技能伤害已标记，跳过，避免重复触发）
-            if (plugin.getWeaponManager() != null
-                    && !com.skillcore.utils.SkillDamageUtils.isSkillDamage(victim)) {
-                plugin.getWeaponManager().notifyHit(player, victim, finalDamage);
-            }
+        }
+
+        // 武器命中钩子：只对「玩家直接近战」触发（普通攻击附带效果）；
+        // 技能伤害已标记跳过，避免重复触发。
+        // 箭 / 三叉戟 / TNT 的伤害者会被还原成玩家，但那不是近战，不能算命中附带。
+        if (damager instanceof Player player
+                && event.getDamager() instanceof Player
+                && plugin.getWeaponManager() != null
+                && !com.skillcore.utils.SkillDamageUtils.isSkillDamage(victim)) {
+            plugin.getWeaponManager().notifyHit(player, victim, finalDamage);
         }
 
         // --- reflect / thorns ---

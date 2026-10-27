@@ -101,6 +101,32 @@ public final class ArmorStats {
         for (String key : section.getKeys(false)) {
             s.custom.put(key, section.get(key));
         }
-        return s;
+        // 与 WeaponStats.sanitize 对齐：armor/*.yml 写错（NaN / 负数 / 过大值）不能直接进战斗公式
+        return s.sanitize();
+    }
+
+    /**
+     * 把数值收敛到安全区间。
+     * <p>
+     * 吸血 / 减伤超过 100% 会让玩家永久无敌，增伤倍率过大则一击必杀，
+     * 生命 / 移速加成同样需要上下限，否则属性修饰符会算成异常值。
+     */
+    public ArmorStats sanitize() {
+        lifesteal = clampRange(lifesteal, 0.0, 1.0, 0.0);
+        reflectPercent = clampRange(reflectPercent, 0.0, 2.0, 0.0);
+        reflectFlat = clampRange(reflectFlat, 0.0, 100.0, 0.0);
+        damageMultiplier = clampRange(damageMultiplier, 0.0, 10.0, 1.0);
+        damageReduction = clampRange(damageReduction, 0.0, 1.0, 0.0);
+        maxHealthBonus = clampRange(maxHealthBonus, 0.0, 2048.0, 0.0);
+        movementSpeedPercent = clampRange(movementSpeedPercent, -0.9, 5.0, 0.0);
+        return this;
+    }
+
+    /** NaN / 无穷按 {@code fallback} 处理，其余夹到 [min, max]。 */
+    private static double clampRange(double value, double min, double max, double fallback) {
+        if (!Double.isFinite(value)) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(value, max));
     }
 }

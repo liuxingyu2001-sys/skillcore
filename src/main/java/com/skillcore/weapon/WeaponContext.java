@@ -133,7 +133,7 @@ public final class WeaponContext {
 
     /** 对指定目标造成武器完整伤害。 */
     public double damage(LivingEntity victim) {
-        if (victim == null || !DamageUtils.isAlive(victim)) return 0;
+        if (!canDamage(victim)) return 0;
         double dealt = stats.calculateTotal(victim, power);
         if (dealt > 0) {
             SkillDamageUtils.damage(victim, dealt, player, skillSource());
@@ -145,7 +145,7 @@ public final class WeaponContext {
 
     /** 仅物理伤害（不吃百分比）。 */
     public double damagePhysical(LivingEntity victim) {
-        if (victim == null || !DamageUtils.isAlive(victim)) return 0;
+        if (!canDamage(victim)) return 0;
         double dealt = stats.calculateHit(victim, power);
         if (dealt > 0) {
             SkillDamageUtils.damage(victim, dealt, player, skillSource());
@@ -156,7 +156,7 @@ public final class WeaponContext {
 
     /** 仅百分比伤害。 */
     public double damagePercent(LivingEntity victim) {
-        if (victim == null || !DamageUtils.isAlive(victim)) return 0;
+        if (!canDamage(victim)) return 0;
         double dealt = stats.calculatePercentBonus(victim);
         if (dealt > 0) {
             SkillDamageUtils.damage(victim, dealt, player, skillSource());
@@ -167,7 +167,7 @@ public final class WeaponContext {
 
     /** 自定义基础伤害（覆盖 stats.damage）。 */
     public double damageCustom(LivingEntity victim, double baseDamage) {
-        if (victim == null || !DamageUtils.isAlive(victim)) return 0;
+        if (!canDamage(victim)) return 0;
         double dealt = DamageUtils.calculateFinalDamage(
                 baseDamage, stats.damageScaling(), power,
                 stats.criticalChance(), stats.criticalMultiplier(),
@@ -179,12 +179,33 @@ public final class WeaponContext {
         return dealt;
     }
 
+    /**
+     * 单体伤害前的统一校验：活着的目标且不是「应忽略的目标」。
+     * <p>
+     * 直接命中虽然走的是射线/瞄准结果，但辅助瞄准、脚本化目标等路径仍可能拿到
+     * 队友 / 宠物 / NPC / 盔甲架，这里再兜一层，避免绕过 {@code TargetFilter}。
+     */
+    private boolean canDamage(LivingEntity victim) {
+        return DamageUtils.isAlive(victim) && !TargetFilter.shouldIgnoreTarget(player, victim);
+    }
+
     /** 按武器 lifesteal 比例自动吸血（所有伤害统一入口）。 */
     private void applyLifesteal(double dealt) {
-        double percent = stats.lifesteal();
+        if (dealt <= 0) return;
+        // 盔甲套装的吸血对技能伤害同样生效：取较大值，避免与武器吸血叠加成双倍回血
+        double percent = Math.max(stats.lifesteal(), armorLifesteal());
         if (percent > 0) {
             LifestealUtils.healByDamagePercent(player, dealt, percent);
         }
+    }
+
+    /** 当前穿戴整套盔甲的吸血加成（未穿戴 / 盔甲模块未就绪返回 0）。 */
+    private double armorLifesteal() {
+        var plugin = com.skillcore.SkillCorePlugin.getInstance();
+        if (plugin == null || plugin.getArmorManager() == null) {
+            return 0.0;
+        }
+        return plugin.getArmorManager().getActive(player).lifesteal();
     }
 
     /** 当前技能来源 id（用于技能伤害标记）。 */
@@ -203,19 +224,66 @@ public final class WeaponContext {
         var plugin = com.skillcore.SkillCorePlugin.getInstance();
         if (plugin == null) return first;
         var scheduler = plugin.getServer().getScheduler();
+        java.util.UUID playerId = player.getUniqueId();
         for (int i = 1; i < count; i++) {
-            scheduler.runTaskLater(plugin, () -> {
-                if (DamageUtils.isAlive(victim) && DamageUtils.isAlive(player)) {
+            // 延迟段必须登记句柄：0 冷却连点 / 重载 / 玩家退出时要把它们取消，
+            // 否则旧任务会带着旧 stats 继续结算伤害，且任务数会无限叠加。
+            java.util.concurrent.atomic.AtomicReference<org.bukkit.scheduler.BukkitTask> ref =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            org.bukkit.scheduler.BukkitTask task = scheduler.runTaskLater(plugin, () -> {
+                untrackPendingHit(playerId, ref.get());
+                if (player.isOnline() && DamageUtils.isAlive(player) && DamageUtils.isAlive(victim)) {
                     damage(victim);
                 }
             }, Math.max(0L, (long) (stats.hitIntervalTicks() * i)));
+            ref.set(task);
+            trackPendingHit(playerId, task);
         }
         return first;
     }
 
+    /** 待结算的多段伤害任务（按玩家分组，退出/重载时统一取消）。 */
+    private static final java.util.Map<java.util.UUID, java.util.List<org.bukkit.scheduler.BukkitTask>> PENDING_HITS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void trackPendingHit(java.util.UUID playerId, org.bukkit.scheduler.BukkitTask task) {
+        if (playerId == null || task == null) return;
+        PENDING_HITS.computeIfAbsent(playerId, k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()))
+                .add(task);
+    }
+
+    private static void untrackPendingHit(java.util.UUID playerId, org.bukkit.scheduler.BukkitTask task) {
+        if (playerId == null) return;
+        java.util.List<org.bukkit.scheduler.BukkitTask> list = PENDING_HITS.get(playerId);
+        if (list == null) return;
+        list.remove(task);
+        if (list.isEmpty()) {
+            PENDING_HITS.remove(playerId);
+        }
+    }
+
+    /** 取消某玩家所有未结算的多段伤害（退出 / 死亡时调用）。 */
+    public static void cancelPendingHits(java.util.UUID playerId) {
+        if (playerId == null) return;
+        java.util.List<org.bukkit.scheduler.BukkitTask> list = PENDING_HITS.remove(playerId);
+        if (list == null) return;
+        for (org.bukkit.scheduler.BukkitTask task : list) {
+            if (task != null) task.cancel();
+        }
+        list.clear();
+    }
+
+    /** 取消全部未结算的多段伤害（重载 / 禁用时调用）。 */
+    public static void cancelAllPendingHits() {
+        for (java.util.UUID id : PENDING_HITS.keySet()) {
+            cancelPendingHits(id);
+        }
+        PENDING_HITS.clear();
+    }
+
     /** AOE：对目标周围按 aoe-damage-ratio 造成溅射。 */
     public List<LivingEntity> aoeFrom(LivingEntity center, double radius) {
-        if (center == null || !DamageUtils.isAlive(center)) return List.of();
+        if (center == null || !DamageUtils.isAlive(center)) return new java.util.ArrayList<>();
         double r = radius > 0 ? radius : stats.aoeRadius();
         List<LivingEntity> list = TargetFilter.filter(player,
                 com.skillcore.utils.AreaUtils.getSphere(center.getLocation(), r,

@@ -89,6 +89,8 @@ public final class WeaponManager {
             ItemStack item
     ) {
         if (weapon == null || skill == null || player == null || trigger == null) return false;
+        // 纯被动技能（没覆写对应点击钩子）不消耗点击、不进冷却、不取消交互事件
+        if (!supportsTrigger(skill, trigger)) return false;
 
         boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
         boolean sneak = trigger.isShift();
@@ -187,13 +189,20 @@ public final class WeaponManager {
 
     /**
      * 技能是否覆写了该触发对应的钩子（默认方法不算）。
+     * <p>
+     * 左右键也必须检查：把纯被动技能（例如只实现 {@code onHit} 的日炎之剑）绑到
+     * {@code right-skill} 时，不检查就会「点了没效果，但事件被取消」——箱子/门/食物都用不了。
      */
     private boolean supportsTrigger(WeaponSkill skill, SkillTrigger trigger) {
         String method = switch (trigger) {
+            case LEFT_CLICK -> "onLeftClick";
+            case RIGHT_CLICK, BOTH_CLICK -> "onRightClick";
+            case SHIFT_LEFT_CLICK -> "onShiftLeftClick";
+            case SHIFT_RIGHT_CLICK -> "onShiftRightClick";
             case DOUBLE_SHIFT -> "onDoubleShift";
             case HOLD_SHIFT -> "onHoldShift";
             case RELEASE_SHIFT -> "onReleaseShift";
-            default -> null;
+            case COMMAND -> null;
         };
         if (method == null) return true;
         String cacheKey = skill.getClass().getName() + "#" + method;
@@ -338,15 +347,10 @@ public final class WeaponManager {
             WeaponSkill left = weapon.leftSkillType() != null
                     ? factory.createSkill(weapon.leftSkillType(), weapon)
                     : null;
-            WeaponRegistry.Entry old = registry.getEntry(key).orElse(null);
+            // register 覆盖同 id 条目时会自动清理旧实例的持久状态，这里不再重复 cleanup
             registry.register(weapon, right, left);
-            // 旧实例的持久状态（状态表 / 定时任务）需要清理
-            if (old != null) {
-                safeCleanup(old.skill());
-                if (old.leftSkill() != old.skill()) {
-                    safeCleanup(old.leftSkill());
-                }
-            }
+            // 冷却写回后必须清掉旧记录，否则 /sc cooldown <id> 0 看起来「生效了」但玩家仍在冷却
+            clearCooldownEverywhere(key);
             return true;
         } catch (Exception ex) {
             com.skillcore.SkillCorePlugin.getInstance().getLogger()
@@ -355,13 +359,13 @@ public final class WeaponManager {
         }
     }
 
-    private void safeCleanup(WeaponSkill skill) {
-        if (skill == null) return;
-        try {
-            skill.cleanup();
-        } catch (Exception ex) {
-            com.skillcore.SkillCorePlugin.getInstance().getLogger()
-                    .warning("Weapon skill cleanup error [" + skill.getType() + "]: " + ex);
+    /** 清除所有在线玩家在这把武器上的左右键冷却记录。 */
+    private void clearCooldownEverywhere(String weaponId) {
+        if (weaponId == null || weaponId.isEmpty()) return;
+        String id = weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        for (Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
+            CooldownUtils.clear(p.getUniqueId(), "weapon:" + id + ":left");
+            CooldownUtils.clear(p.getUniqueId(), "weapon:" + id + ":right");
         }
     }
 
@@ -370,6 +374,8 @@ public final class WeaponManager {
      */
     public void notifyQuit(Player player) {
         if (player == null) return;
+        // 先取消该玩家未结算的多段伤害任务，避免退出后仍在结算（且闭包还持有旧 stats）
+        WeaponContext.cancelPendingHits(player.getUniqueId());
         for (WeaponRegistry.Entry entry : registry.all()) {
             safeOnQuit(entry.skill(), player);
             if (entry.leftSkill() != entry.skill()) {
@@ -397,9 +403,24 @@ public final class WeaponManager {
     private static void forEachSkill(WeaponRegistry.Entry entry, java.util.function.Consumer<WeaponSkill> action) {
         if (entry == null || action == null) return;
         WeaponSkill right = entry.skill();
-        if (right != null) action.accept(right);
+        if (right != null) safePassive(right, action);
         WeaponSkill left = entry.leftSkill();
-        if (left != null && left != right) action.accept(left);
+        if (left != null && left != right) safePassive(left, action);
+    }
+
+    /**
+     * 被动回调统一包一层 try/catch。
+     * <p>
+     * 这些回调跑在 {@code EntityDamageByEntityEvent} / {@code EntityDeathEvent} 里，
+     * 技能抛异常会连累同一事件里的吸血、反伤、减伤逻辑一起失效，还会刷屏。
+     */
+    private static void safePassive(WeaponSkill skill, java.util.function.Consumer<WeaponSkill> action) {
+        try {
+            action.accept(skill);
+        } catch (Exception ex) {
+            com.skillcore.SkillCorePlugin.getInstance().getLogger()
+                    .warning("Weapon skill callback error [" + skill.getType() + "]: " + ex);
+        }
     }
 
     /**
@@ -462,6 +483,7 @@ public final class WeaponManager {
      */
     public void cleanup() {
         registry.cleanup();
+        WeaponContext.cancelAllPendingHits();
         overrideCache.clear();
         lastCooldownPrompt.clear();
     }
@@ -492,16 +514,10 @@ public final class WeaponManager {
         if (weapon == null) return 0;
         var plugin = com.skillcore.SkillCorePlugin.getInstance();
         int updated = 0;
-        // PlayerInventory#getContents() 通常已包含盔甲槽，用身份集合去重避免同一物品刷两次
+        // PlayerInventory#getContents() 已包含盔甲槽与副手，只遍历一次即可
+        // （getArmorContents() 每次返回新的镜像对象，身份去重对它无效，会重复计数）
         java.util.Set<ItemStack> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (ItemStack item : player.getInventory().getContents()) {
-            if (item == null || !seen.add(item)) continue;
-            String id = WeaponItems.getWeaponId(plugin, item);
-            if (id != null && id.equalsIgnoreCase(weaponId)) {
-                if (WeaponItems.updateLore(item, weapon)) updated++;
-            }
-        }
-        for (ItemStack item : player.getInventory().getArmorContents()) {
             if (item == null || !seen.add(item)) continue;
             String id = WeaponItems.getWeaponId(plugin, item);
             if (id != null && id.equalsIgnoreCase(weaponId)) {

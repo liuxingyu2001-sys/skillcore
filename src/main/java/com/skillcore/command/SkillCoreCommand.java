@@ -395,8 +395,10 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
 
     private double parseDouble(String raw, double def) {
         try {
-            return Double.parseDouble(raw);
-        } catch (NumberFormatException ex) {
+            double v = Double.parseDouble(raw);
+            // "NaN" / "Infinity" 能被 parseDouble 接受，必须当成非法值回退默认
+            return Double.isFinite(v) ? v : def;
+        } catch (NumberFormatException | NullPointerException ex) {
             return def;
         }
     }

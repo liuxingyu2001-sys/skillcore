@@ -44,6 +44,9 @@ public final class DamageUtils {
     }
 
     public static double getMissingHealth(LivingEntity entity) {
+        if (entity == null) {
+            return 0.0;
+        }
         return Math.max(0.0, getMaxHealth(entity) - entity.getHealth());
     }
 
@@ -53,6 +56,9 @@ public final class DamageUtils {
     }
 
     public static double getHealthPercent(LivingEntity entity) {
+        if (entity == null) {
+            return 0.0;
+        }
         double max = getMaxHealth(entity);
         return max <= 0 ? 0.0 : entity.getHealth() / max;
     }
@@ -349,6 +355,9 @@ public final class DamageUtils {
      * Effective damage after absorption hearts are considered.
      */
     public static double getEffectiveHealth(LivingEntity entity) {
+        if (entity == null) {
+            return 0.0;
+        }
         return entity.getHealth() + entity.getAbsorptionAmount();
     }
 

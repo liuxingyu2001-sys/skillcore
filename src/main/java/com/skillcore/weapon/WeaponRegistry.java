@@ -48,10 +48,22 @@ public final class WeaponRegistry {
     public void register(SkillWeapon weapon, WeaponSkill rightSkill, WeaponSkill leftSkill) {
         String id = weapon == null ? null : normalize(weapon.id());
         if (id == null || id.isEmpty()) return;
-        if (weapons.containsKey(id)) {
-            org.bukkit.Bukkit.getLogger().warning("重复注册的武器 id: " + id + "，后注册的配置已覆盖前一份");
+        Entry old = weapons.put(id, new Entry(weapon, rightSkill, leftSkill));
+        if (old != null) {
+            // 覆盖注册（重载 / 重复 id）时旧实例的持久状态（BossBar / 状态表 / 定时任务）必须清理，
+            // 否则每次重载都会多泄漏一份
+            safeCleanupEntry(old, rightSkill, leftSkill);
         }
-        weapons.put(id, new Entry(weapon, rightSkill, leftSkill));
+    }
+
+    /** 清理被替换掉的旧实例（与新的左右技能是同一个实例时跳过）。 */
+    private void safeCleanupEntry(Entry old, WeaponSkill keepRight, WeaponSkill keepLeft) {
+        if (old.skill() != keepRight && old.skill() != keepLeft) {
+            safeCleanup(old.skill());
+        }
+        if (old.leftSkill() != old.skill() && old.leftSkill() != keepRight && old.leftSkill() != keepLeft) {
+            safeCleanup(old.leftSkill());
+        }
     }
 
     public void register(Entry entry) {
@@ -62,7 +74,11 @@ public final class WeaponRegistry {
 
     public boolean unregister(String id) {
         String key = normalize(id);
-        return key != null && weapons.remove(key) != null;
+        if (key == null) return false;
+        Entry removed = weapons.remove(key);
+        if (removed == null) return false;
+        safeCleanupEntry(removed, null, null);
+        return true;
     }
 
     public Optional<Entry> getEntry(String id) {
@@ -119,7 +135,13 @@ public final class WeaponRegistry {
         }
     }
 
+    /**
+     * 清空注册表。
+     * <p>
+     * 与 {@link #cleanup()} 等价（先清理技能状态再清表）：{@code ConfigManager.loadWeapons}
+     * 会直接调用它，不清理的话旧技能实例的定时任务 / BossBar 会泄漏。
+     */
     public void clear() {
-        weapons.clear();
+        cleanup();
     }
 }

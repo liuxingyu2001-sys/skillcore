@@ -35,6 +35,10 @@ public final class DisplayEffect implements SkillEffect {
     @Override
     public void play(EffectContext context) {
         if (!EffectSettings.effectsEnabled() || !context.valid()) return;
+        // 显示物只能靠调度器移除：插件未就绪 / 已禁用时直接不生成，
+        // 否则 runTaskLater 会抛 IllegalPluginAccessException，而实体已经留在世界里不会回收
+        SkillCorePlugin plugin = SkillCorePlugin.getInstance();
+        if (plugin == null || !plugin.isEnabled()) return;
         ItemStack stack = resolveItem();
         if (stack == null || stack.getType().isAir()) return;
 
@@ -42,6 +46,7 @@ public final class DisplayEffect implements SkillEffect {
         float s = Float.isFinite(scale) && scale > 0 ? Math.min(scale, 64.0f) : 1.0f;
         Quaternionf rotation = faceDirection ? directionToQuaternion(context.direction()) : identity();
         Location spawnAt = context.location().clone();
+        if (spawnAt.getWorld() == null) return;
 
         ItemDisplay display = spawnAt.getWorld().spawn(spawnAt, ItemDisplay.class, d -> {
             d.setItemStack(stack);
@@ -59,13 +64,13 @@ public final class DisplayEffect implements SkillEffect {
                     new Vector3f(s, s, s), identity()));
         });
 
-        if (display != null && removeAfterTicks > 0) {
-            SkillCorePlugin plugin = SkillCorePlugin.getInstance();
-            if (plugin != null) {
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (display.isValid()) display.remove();
-                }, removeAfterTicks);
-            }
+        if (display != null) {
+            // removeAfterTicks <= 0 时也必须有一个保底寿命，否则实体永不消失（只有区块卸载才回收），
+            // 上限 30 秒，避免配置写错导致实体长期堆积。
+            long life = removeAfterTicks > 0 ? Math.min(removeAfterTicks, 20L * 30L) : 60L;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (display.isValid()) display.remove();
+            }, life);
         }
     }
 

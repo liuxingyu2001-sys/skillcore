@@ -194,15 +194,7 @@ public final class WeaponFactory {
         String rightTriggerRaw = section.getString("right-trigger", section.getString("trigger", "RIGHT_CLICK"));
         String leftTriggerRaw = section.getString("left-trigger", "LEFT_CLICK");
 
-        WeaponStats stats;
-        // 数值既可写在 stats: 段，也可平铺在文件顶层（stats: 段优先）
-        ConfigurationSection statsSection = section.getConfigurationSection("stats");
-        if (statsSection == null) {
-            stats = WeaponStats.fromConfig(section);
-        } else {
-            mergeTopLevelStats(section, statsSection);
-            stats = WeaponStats.fromConfig(statsSection);
-        }
+        WeaponStats stats = parseStats(section);
 
         int cmd = section.getInt("custom-model-data", 0);
         boolean glow = section.getBoolean("glow", false);
@@ -222,19 +214,34 @@ public final class WeaponFactory {
     }
 
     /**
-     * 把文件顶层中未在 {@code stats:} 段出现的键补进 stats（顶层作为回退），
-     * 这样 {@code cooldown} 等数值写在 stats 内或文件顶层都能生效，避免“设了没反应”。
+     * 解析数值：{@code stats:} 段优先，文件顶层的数值键作为回退。
+     * <p>
+     * 这里必须合并到一份<b>临时</b>配置里，不能直接往入参的 {@code stats:} 段 {@code set(...)}：
+     * 入参是 {@code ConfigManager} 缓存的 {@link org.bukkit.configuration.file.YamlConfiguration}，
+     * 直接写会污染缓存（任何后续 {@code save()} 都会把 lore / enchantments 等段对象落盘）。
      */
-    private static void mergeTopLevelStats(ConfigurationSection root, ConfigurationSection stats) {
+    private static WeaponStats parseStats(ConfigurationSection root) {
+        ConfigurationSection statsSection = root.getConfigurationSection("stats");
+        if (statsSection == null) {
+            return WeaponStats.fromConfig(root);
+        }
+        org.bukkit.configuration.MemoryConfiguration merged = new org.bukkit.configuration.MemoryConfiguration();
+        for (String key : statsSection.getKeys(true)) {
+            merged.set(key, statsSection.get(key));
+        }
         for (String key : root.getKeys(false)) {
-            if (key.equals("stats") || stats.contains(key)) {
+            if (key.equals("stats") || merged.contains(key)) {
                 continue;
             }
             Object value = root.get(key);
-            if (value != null) {
-                stats.set(key, value);
+            // 只回退标量数值键：段 / 列表（enchantments、lore 等）不能被写进 stats
+            if (value == null || value instanceof ConfigurationSection
+                    || value instanceof java.util.List || value instanceof java.util.Map) {
+                continue;
             }
+            merged.set(key, value);
         }
+        return WeaponStats.fromConfig(merged);
     }
 
     /**
@@ -258,7 +265,9 @@ public final class WeaponFactory {
     private static Material parseMaterial(String raw, String weaponId) {
         if (raw == null || raw.isBlank()) return Material.IRON_SWORD;
         Material m = Material.matchMaterial(raw.trim());
-        if (m == null) {
+        // 必须是「可放进物品栏」的材质：AIR / WATER 等方块状态类材质构造出来的 ItemStack 无效，
+        // PDC 写不进去，give 出去玩家也拿不到东西
+        if (m == null || !m.isItem() || m.isAir()) {
             org.bukkit.Bukkit.getLogger().warning(
                     "武器 " + weaponId + " 的 material 无效: " + raw + "，已回退为 IRON_SWORD");
             return Material.IRON_SWORD;

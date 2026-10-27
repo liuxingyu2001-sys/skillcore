@@ -35,7 +35,7 @@ public final class ClassScanner {
                 if ("jar".equals(protocol)) {
                     classes.addAll(scanJar(plugin, resource, packageName));
                 } else if ("file".equals(protocol)) {
-                    classes.addAll(scanDirectory(packageName, new File(resource.getFile())));
+                    classes.addAll(scanDirectory(packageName, new File(decodePath(resource.getFile()))));
                 }
             }
         } catch (IOException ex) {
@@ -46,7 +46,7 @@ public final class ClassScanner {
 
     private static List<Class<?>> scanJar(Plugin plugin, URL jarUrl, String packageName) {
         List<Class<?>> classes = new ArrayList<>();
-        String jarPath = jarUrl.getPath();
+        String jarPath = decodePath(jarUrl.getPath());
         int bang = jarPath.indexOf('!');
         if (bang >= 0) {
             jarPath = jarPath.substring(0, bang);
@@ -59,7 +59,7 @@ public final class ClassScanner {
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 String name = entries.nextElement().getName();
-                if (name.startsWith(packagePath) && name.endsWith(".class")) {
+                if (name.startsWith(packagePath) && name.endsWith(".class") && !name.contains("$")) {
                     loadClass(plugin, name.substring(0, name.length() - 6).replace('/', '.'), classes);
                 }
             }
@@ -67,6 +67,21 @@ public final class ClassScanner {
             plugin.getLogger().warning("扫描技能 jar 失败: " + ex.getMessage());
         }
         return classes;
+    }
+
+    /**
+     * URL 路径解码。
+     * <p>
+     * 服务器目录含空格或中文时，{@code jarUrl.getPath()} 会带 {@code %20} / 百分号转义，
+     * 直接 {@code new JarFile(...)} 会 FileNotFoundException，导致注解自动注册静默失效。
+     */
+    private static String decodePath(String raw) {
+        if (raw == null) return "";
+        try {
+            return java.net.URLDecoder.decode(raw, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            return raw;
+        }
     }
 
     private static List<Class<?>> scanDirectory(String packageName, File directory) {

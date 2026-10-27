@@ -204,19 +204,22 @@ public final class PacketEventsHook {
     }
 
     private static void restore(List<Player> viewers, List<BlockPos> blocks) {
-        for (Player viewer : viewers) {
-            if (!viewer.isOnline()) continue;
-            for (BlockPos block : blocks) {
-                if (!viewer.getWorld().equals(block.world())) continue;
-                // 用真实方块数据覆盖，清除客户端裂纹渲染（不修改服务器方块）
-                org.bukkit.Location loc = new org.bukkit.Location(block.world(), block.x(), block.y(), block.z());
-                BlockData live;
+        for (BlockPos block : blocks) {
+            // 每个方块只取一次世界数据（放在观众循环外），区块未加载时直接用快照，
+            // 否则 getBlockAt 会同步加载区块，而这是延迟任务里跑在主线程上的
+            BlockData data = block.data();
+            if (block.world().isChunkLoaded(block.x() >> 4, block.z() >> 4)) {
                 try {
-                    live = loc.getBlock().getBlockData();
-                } catch (Throwable ex) {
-                    live = block.data();
+                    data = block.world().getBlockAt(block.x(), block.y(), block.z()).getBlockData();
+                } catch (Throwable ignored) {
+                    // 取不到就用快照
                 }
-                viewer.sendBlockChange(loc, live);
+            }
+            org.bukkit.Location loc = new org.bukkit.Location(block.world(), block.x(), block.y(), block.z());
+            for (Player viewer : viewers) {
+                if (!viewer.isOnline() || !viewer.getWorld().equals(block.world())) continue;
+                // 用真实方块数据覆盖，清除客户端裂纹渲染（不修改服务器方块）
+                viewer.sendBlockChange(loc, data);
             }
         }
     }

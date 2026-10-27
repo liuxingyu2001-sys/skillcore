@@ -98,10 +98,15 @@ public final class ParticleUtils {
                 || radius <= 0 || particle == null) {
             return;
         }
-        Vector a = (axis == null ? new Vector(0, 1, 0) : axis.clone()).normalize();
+        Vector a = axis == null ? new Vector(0, 1, 0) : axis.clone();
+        // 零向量归一化会得到 NaN 坐标，整圈粒子都会变成无效数据包
+        if (a.lengthSquared() < 1.0e-8) {
+            a = new Vector(0, 1, 0);
+        }
+        a.normalize();
         Vector u = perpendicular(a);
         Vector v = a.clone().crossProduct(u).normalize();
-        int n = Math.max(3, points);
+        int n = Math.max(3, Math.min(points, 512));
         for (int i = 0; i < n; i++) {
             double angle = 2 * Math.PI * i / n;
             Vector offset = u.clone().multiply(Math.cos(angle) * radius)
@@ -117,8 +122,8 @@ public final class ParticleUtils {
 
     /** 球壳。 */
     public static void sphereShell(Location center, double radius, Particle particle, int points) {
-        if (!EffectSettings.particlesEnabled() || center == null || radius <= 0) return;
-        int n = Math.max(1, points);
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;
+        int n = Math.max(1, Math.min(points, 512));
         for (int i = 0; i < n; i++) {
             double theta = Math.random() * Math.PI * 2;
             double phi = Math.acos(2 * Math.random() - 1);
@@ -131,8 +136,9 @@ public final class ParticleUtils {
 
     /** 实心球（随机点，数量 = points）。 */
     public static void sphere(Location center, double radius, Particle particle, int points) {
-        if (!EffectSettings.particlesEnabled() || center == null || radius <= 0) return;
-        for (int i = 0; i < Math.max(1, points); i++) {
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;
+        int n = Math.max(1, Math.min(points, 512));
+        for (int i = 0; i < n; i++) {
             Vector dir = randomUnitVector();
             double r = radius * Math.cbrt(Math.random());
             spawn(center.clone().add(dir.multiply(r)), particle, 1);
@@ -141,8 +147,9 @@ public final class ParticleUtils {
 
     /** 立方体边框。 */
     public static void cube(Location center, double size, Particle particle, int edgePoints) {
-        if (!EffectSettings.particlesEnabled() || center == null || size <= 0) return;
-        int n = Math.max(2, edgePoints);
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || size <= 0) return;
+        // 立方体是 3 * n * n 个点，上限要比其它形状更紧
+        int n = Math.max(2, Math.min(edgePoints, 32));
         double h = size / 2.0;
         for (int axis = 0; axis < 3; axis++) {
             for (int a = 0; a < n; a++) {
@@ -162,8 +169,9 @@ public final class ParticleUtils {
 
     /** 螺旋线。 */
     public static void helix(Location center, double radius, double height, Particle particle, int points) {
-        if (!EffectSettings.particlesEnabled() || center == null || radius <= 0) return;
-        int n = Math.max(2, points);
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;
+        if (!Double.isFinite(height)) return;
+        int n = Math.max(2, Math.min(points, 512));
         for (int i = 0; i < n; i++) {
             double t = (double) i / n;
             double angle = t * Math.PI * 8;
@@ -177,9 +185,13 @@ public final class ParticleUtils {
     /** 沿朝向的锥形。 */
     public static void cone(Location tip, Vector direction, double angleDeg, double length,
                             Particle particle, int points) {
-        if (!EffectSettings.particlesEnabled() || tip == null || direction == null || length <= 0) return;
-        Vector dir = direction.clone().normalize();
-        int n = Math.max(2, points);
+        if (!EffectSettings.particlesEnabled() || tip == null || tip.getWorld() == null
+                || direction == null || !Double.isFinite(length) || length <= 0) return;
+        Vector dir = direction.clone();
+        if (dir.lengthSquared() < 1.0e-8) return;
+        dir.normalize();
+        // 每层都会再画一圈粒子，这里把层数压到 64 以内
+        int n = Math.max(2, Math.min(points, 64));
         double tan = Math.tan(Math.toRadians(Math.max(0, Math.min(89, angleDeg))));
         for (int i = 0; i <= n; i++) {
             double dist = length * i / n;
@@ -191,11 +203,17 @@ public final class ParticleUtils {
 
     /** 沿朝向的光束。 */
     public static void beam(Location from, Vector direction, double length, double step, Particle particle) {
-        if (!EffectSettings.particlesEnabled() || from == null || direction == null) return;
-        Vector dir = direction.clone().normalize();
-        double s = Math.max(0.05, step);
-        for (double d = 0; d <= length; d += s) {
-            spawn(from.clone().add(dir.clone().multiply(d)), particle, 1);
+        if (!EffectSettings.particlesEnabled() || from == null || direction == null
+                || from.getWorld() == null) return;
+        // length 为 NaN / Infinity / 超大值时，原来的浮点步进循环会死循环或画出上亿粒子
+        if (!Double.isFinite(length) || length <= 0) return;
+        Vector dir = direction.clone();
+        if (dir.lengthSquared() < 1.0e-8) return;
+        dir.normalize();
+        double s = Double.isFinite(step) ? Math.max(0.05, step) : 0.25;
+        int points = Math.max(1, Math.min((int) Math.ceil(length / s), 1024));
+        for (int i = 0; i <= points; i++) {
+            spawn(from.clone().add(dir.clone().multiply(length * i / points)), particle, 1);
         }
     }
 
@@ -245,7 +263,7 @@ public final class ParticleUtils {
         }
         Vector step = to.toVector().subtract(from.toVector()).normalize();
         Vector perp = perpendicular(step);
-        int n = Math.max(2, segments);
+        int n = Math.max(2, Math.min(segments, 32));
         for (int i = 1; i < n; i++) {
             double t = i / (double) n;
             // 中间抖动最大，两端贴近端点
@@ -277,8 +295,8 @@ public final class ParticleUtils {
 
     /** 多边形边框。 */
     public static void polygon(Location center, double radius, int sides, Particle particle) {
-        if (!EffectSettings.particlesEnabled() || center == null || radius <= 0) return;
-        int n = Math.max(3, sides);
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;
+        int n = Math.max(3, Math.min(sides, 128));
         Location prev = null;
         for (int i = 0; i <= n; i++) {
             double angle = 2 * Math.PI * i / n;
@@ -292,8 +310,8 @@ public final class ParticleUtils {
 
     /** 星形。 */
     public static void star(Location center, double radius, int points, Particle particle) {
-        if (!EffectSettings.particlesEnabled() || center == null || radius <= 0) return;
-        int n = Math.max(2, points);
+        if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;
+        int n = Math.max(2, Math.min(points, 128));
         for (int i = 0; i < n; i++) {
             double angle = 2 * Math.PI * i / n;
             Location tip = center.clone().add(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
@@ -303,10 +321,12 @@ public final class ParticleUtils {
 
     /** 抛物线（用于投掷物轨迹）。 */
     public static void parabola(Location start, Vector velocity, double gravity, int steps, Particle particle) {
-        if (!EffectSettings.particlesEnabled() || start == null || velocity == null) return;
+        if (!EffectSettings.particlesEnabled() || start == null || start.getWorld() == null
+                || velocity == null || !Double.isFinite(gravity)) return;
         Location p = start.clone();
         Vector v = velocity.clone();
-        for (int i = 0; i < steps; i++) {
+        int n = Math.max(0, Math.min(steps, 1024));
+        for (int i = 0; i < n; i++) {
             spawn(p, particle, 1);
             p = p.clone().add(v);
             v = v.clone().setY(v.getY() - gravity);
@@ -334,14 +354,23 @@ public final class ParticleUtils {
     /** 彩色尘。 */
     public static void dust(Location location, Color color, float size, int count) {
         if (color == null) return;
-        spawn(location, Particle.DUST, count, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(color, size));
+        // DustOptions 对 size 有硬性范围校验（0.01~4），越界会抛 IllegalArgumentException 直接炸掉整段特效
+        spawn(location, Particle.DUST, count, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(color, dustSize(size)));
     }
 
     /** 双色过渡尘。 */
     public static void dustTransition(Location location, Color from, Color to, float size, int count) {
         if (from == null || to == null) return;
         spawn(location, Particle.DUST_COLOR_TRANSITION, count, 0.1, 0.1, 0.1, 0,
-                new Particle.DustTransition(from, to, size));
+                new Particle.DustTransition(from, to, dustSize(size)));
+    }
+
+    /** 尘埃尺寸收敛到客户端允许的 0.01~4.0（NaN / 0 / 负值回退默认 1.0）。 */
+    private static float dustSize(float size) {
+        if (!Float.isFinite(size) || size <= 0) {
+            return 1.0f;
+        }
+        return Math.max(0.01f, Math.min(size, 4.0f));
     }
 
     /** 方块碎屑。 */

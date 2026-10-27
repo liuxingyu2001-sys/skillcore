@@ -335,6 +335,10 @@ public final class DisplacementUtils {
         if (y - 1 < world.getMinHeight() || y + 1 >= world.getMaxHeight()) {
             return false;
         }
+        // 未加载的区块会因 getBlockAt 同步加载，闪现落点直接视为不可用（避免主线程卡顿）
+        if (!world.isChunkLoaded(x >> 4, z >> 4)) {
+            return false;
+        }
         var below = world.getBlockAt(x, y - 1, z);
         var feet = world.getBlockAt(x, y, z);
         var head = world.getBlockAt(x, y + 1, z);

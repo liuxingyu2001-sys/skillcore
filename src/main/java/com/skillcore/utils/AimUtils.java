@@ -106,9 +106,11 @@ public final class AimUtils {
     // 锥形 / 范围
     // ------------------------------------------------------------------
 
-    /** 眼睛前方锥形范围内的生物。 */
+    /** 眼睛前方锥形范围内的生物（默认只返回可攻击目标，过滤友军/宠物/NPC/盔甲架/同队）。 */
     public static List<LivingEntity> getConeTargets(LivingEntity caster, double angleDegrees, double maxDistance) {
-        return getConeTargets(caster, angleDegrees, maxDistance, e -> true);
+        // 注意必须带 TargetFilter：辅助瞄准会直接把结果交给 ctx.damage() 造成单体伤害，
+        // 不过滤就能打到队友 / 宠物 / 盔甲架。
+        return getConeTargets(caster, angleDegrees, maxDistance, e -> TargetFilter.isAttackable(caster, e));
     }
 
     public static List<LivingEntity> getConeTargets(
@@ -181,9 +183,9 @@ public final class AimUtils {
         return best;
     }
 
-    /** 半径内最近的生物（包围盒预筛，不做全图扫描）。 */
+    /** 半径内最近的生物（包围盒预筛，不做全图扫描；默认只返回可攻击目标）。 */
     public static LivingEntity getNearest(LivingEntity origin, double radius) {
-        return getNearest(origin, radius, e -> true);
+        return getNearest(origin, radius, e -> TargetFilter.isAttackable(origin, e));
     }
 
     public static LivingEntity getNearest(LivingEntity origin, double radius, Predicate<LivingEntity> filter) {

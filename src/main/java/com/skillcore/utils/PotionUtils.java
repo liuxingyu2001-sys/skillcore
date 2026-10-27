@@ -122,6 +122,9 @@ public final class PotionUtils {
                 || type == PotionEffectType.DARKNESS
                 || type == PotionEffectType.INFESTED
                 || type == PotionEffectType.RAID_OMEN
+                // 不祥之兆 / 试炼之兆 属于负面效果，漏掉会被 purgeBuffs 当成增益清掉
+                || type == PotionEffectType.BAD_OMEN
+                || type == PotionEffectType.TRIAL_OMEN
                 || type == PotionEffectType.WIND_CHARGED
                 || type == PotionEffectType.WEAVING
                 || type == PotionEffectType.OOZING;

@@ -150,12 +150,15 @@ public final class Effects {
     /** 在当前位置以球形扩散生成彩色尘。 */
     public static SkillEffect dust(Color color, float size, int count, double spread) {
         return context -> {
-            if (!context.valid()) return;
-            for (int i = 0; i < count; i++) {
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
+            // 逐点绘制会 clone 一次 Location 并单独发包，数量必须封顶（配置写错不至于刷爆主线程）
+            int n = Math.max(0, Math.min(count, 512));
+            double sp = Double.isFinite(spread) ? Math.max(0, spread) : 0.0;
+            for (int i = 0; i < n; i++) {
                 Location p = context.location().clone().add(
-                        (Math.random() * 2 - 1) * spread,
-                        (Math.random() * 2 - 1) * spread,
-                        (Math.random() * 2 - 1) * spread);
+                        (Math.random() * 2 - 1) * sp,
+                        (Math.random() * 2 - 1) * sp,
+                        (Math.random() * 2 - 1) * sp);
                 ParticleUtils.dust(p, color, size, 1);
             }
         };
@@ -185,12 +188,15 @@ public final class Effects {
     public static SkillEffect skyStrikes(double height, int strikes, double spreadRadius,
                                          Particle particle, double jaggedness, int segments) {
         return context -> {
-            if (!context.valid()) return;
-            for (int i = 0; i < strikes; i++) {
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
+            int n = Math.max(0, Math.min(strikes, 32));
+            double h = Double.isFinite(height) ? height : 8.0;
+            double spread = Double.isFinite(spreadRadius) ? Math.max(0, spreadRadius) : 0.0;
+            for (int i = 0; i < n; i++) {
                 Location ground = context.location().clone().add(
-                        (Math.random() * 2 - 1) * spreadRadius, 0,
-                        (Math.random() * 2 - 1) * spreadRadius);
-                Location sky = ground.clone().add(0, height, 0);
+                        (Math.random() * 2 - 1) * spread, 0,
+                        (Math.random() * 2 - 1) * spread);
+                Location sky = ground.clone().add(0, h, 0);
                 ParticleUtils.bolt(sky, ground, particle, jaggedness, segments);
             }
         };
@@ -201,12 +207,15 @@ public final class Effects {
                                              Color color, float size, int dustCount,
                                              double jaggedness, int segments) {
         return context -> {
-            if (!context.valid()) return;
-            for (int i = 0; i < strikes; i++) {
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
+            int n = Math.max(0, Math.min(strikes, 32));
+            double h = Double.isFinite(height) ? height : 8.0;
+            double spread = Double.isFinite(spreadRadius) ? Math.max(0, spreadRadius) : 0.0;
+            for (int i = 0; i < n; i++) {
                 Location ground = context.location().clone().add(
-                        (Math.random() * 2 - 1) * spreadRadius, 0,
-                        (Math.random() * 2 - 1) * spreadRadius);
-                Location sky = ground.clone().add(0, height, 0);
+                        (Math.random() * 2 - 1) * spread, 0,
+                        (Math.random() * 2 - 1) * spread);
+                Location sky = ground.clone().add(0, h, 0);
                 ParticleUtils.boltDust(sky, ground, color, size, dustCount, jaggedness, segments);
             }
         };
@@ -220,7 +229,7 @@ public final class Effects {
     public static SkillEffect expandingRing(Particle particle, double fromRadius, double toRadius,
                                             int points, long durationTicks) {
         return context -> {
-            if (!context.valid()) return;
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
             // durationTicks 直接决定创建多少个延迟任务，必须封顶，避免配置写错刷爆调度器
             int steps = (int) Math.max(1, Math.min(durationTicks, 200));
             double startR = Double.isFinite(fromRadius) ? fromRadius : 0.0;
@@ -241,7 +250,7 @@ public final class Effects {
     /** 地面裂纹：从中心向外放射的闪电状折线。 */
     public static SkillEffect groundCracks(double radius, int cracks, Particle particle, double jaggedness) {
         return context -> {
-            if (!context.valid()) return;
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
             // 每条裂纹一次折线绘制，数量封顶防止配置异常拖垮主线程
             int count = Math.max(0, Math.min(cracks, 64));
             double rad = Double.isFinite(radius) ? radius : 0.0;
@@ -260,7 +269,7 @@ public final class Effects {
     public static SkillEffect orbit(Particle particle, double radius, double height,
                                     double turns, int points, long durationTicks) {
         return context -> {
-            if (!context.valid()) return;
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
             // 每帧一个延迟任务，同样需要封顶
             int steps = (int) Math.max(1, Math.min(durationTicks, 200));
             double r = Double.isFinite(radius) ? radius : 0.0;
@@ -285,7 +294,7 @@ public final class Effects {
      */
     public static SkillEffect groundShatter(double radius) {
         return context -> {
-            if (!context.valid()) return;
+            if (!EffectSettings.effectsEnabled() || !context.valid()) return;
             Location center = context.location();
             World world = context.world();
             // 半径封顶 8：每个方块都要读一次最高方块，过大会卡主线程
@@ -296,7 +305,11 @@ public final class Effects {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (dx * dx + dz * dz > rad * rad + 1) continue;
-                    Block b = world.getHighestBlockAt(center.getBlockX() + dx, center.getBlockZ() + dz);
+                    int blockX = center.getBlockX() + dx;
+                    int blockZ = center.getBlockZ() + dz;
+                    // getHighestBlockAt 会同步加载未加载的区块，边界砸地会造成一次性卡顿
+                    if (!world.isChunkLoaded(blockX >> 4, blockZ >> 4)) continue;
+                    Block b = world.getHighestBlockAt(blockX, blockZ);
                     int guard = 0;
                     while (b != null && !b.getType().isSolid() && guard++ < 5
                             && b.getY() > world.getMinHeight()) {
@@ -315,7 +328,8 @@ public final class Effects {
             }
 
             // 数据包裂纹动画（PacketEvents 软依赖）
-            List<Player> viewers = new ArrayList<>(center.getNearbyPlayers(radius + 16));
+            // 观众查询半径必须用封顶后的 rad，否则配置写大值会在主线程遍历上万实体
+            List<Player> viewers = new ArrayList<>(center.getNearbyPlayers(rad + 16));
             PacketEventsHook.crackAndRestore(viewers, blocks, 6);
         };
     }

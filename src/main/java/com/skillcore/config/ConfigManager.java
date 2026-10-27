@@ -210,7 +210,9 @@ public final class ConfigManager {
             skillFiles.put(id, file);
             stamp = Math.max(stamp, file.lastModified());
         }
-        this.skillsStamp = stamp;
+        // 指纹必须与 currentSkillsStamp() 完全一致的算法（mtime ^ 文件数），
+        // 否则每次 /sc reload 后轮到下一次轮询都会误判「配置变了」并再重载一次
+        this.skillsStamp = stamp ^ (count * 31L);
         this.skillsFileCount = count;
     }
 
@@ -258,13 +260,14 @@ public final class ConfigManager {
             armorFiles.put(id, file);
             stamp = Math.max(stamp, file.lastModified());
         }
-        this.armorStamp = stamp;
+        // 同 reloadSkills：指纹要和 currentArmorStamp() 用同一套算法
+        this.armorStamp = stamp ^ (count * 31L);
         this.armorFileCount = count;
     }
 
     /** 当前 skills 目录的指纹（用于轮询检测变化）。 */
     private long currentSkillsStamp() {
-        File[] files = skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = skillsDir == null ? null : skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
         long stamp = 0;
         int count = 0;
         if (files != null) {
@@ -333,7 +336,7 @@ public final class ConfigManager {
     }
 
     private int countSkillFiles() {
-        File[] files = skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = skillsDir == null ? null : skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
         return files == null ? 0 : files.length;
     }
 

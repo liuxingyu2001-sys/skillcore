@@ -71,6 +71,9 @@ public final class ArmorManager {
             return;
         }
         if (prev != null && newSet.id().equalsIgnoreCase(prev)) {
+            // 同一套：正常情况下无事可做，但死亡 / 其他插件清理过属性修饰符时要把加成补回来，
+            // 否则玩家脱下再穿之前会一直「穿着整套却没有加血/加速」
+            ensurePassiveAttributes(player, newSet);
             return;
         }
         activeSets.put(uuid, newSet.id());
@@ -116,6 +119,43 @@ public final class ArmorManager {
             }
         }
         attr.addModifier(new AttributeModifier(uuid, name, amount, op));
+    }
+
+    /**
+     * 补齐缺失的属性修饰符（不重建已有的）。
+     * <p>
+     * 死亡重生、被其他插件 / 命令清理属性时修饰符会消失，而套装 id 没变，
+     * 周期兜底检测会一直走「同一套直接返回」的分支，加成永远补不回来。
+     */
+    private void ensurePassiveAttributes(Player player, ArmorSet set) {
+        if (player == null || set == null || !player.isOnline()) {
+            return;
+        }
+        ArmorStats s = set.stats();
+        if (s.maxHealthBonus() > 0 && !hasModifier(player, Attribute.MAX_HEALTH, MAX_HEALTH_UUID)) {
+            applyAttribute(player, Attribute.MAX_HEALTH, MAX_HEALTH_UUID,
+                    "skillcore_armor_max_health", s.maxHealthBonus(),
+                    AttributeModifier.Operation.ADD_NUMBER);
+        }
+        if (Math.abs(s.movementSpeedPercent()) > 1.0e-9
+                && !hasModifier(player, Attribute.MOVEMENT_SPEED, MOVE_SPEED_UUID)) {
+            applyAttribute(player, Attribute.MOVEMENT_SPEED, MOVE_SPEED_UUID,
+                    "skillcore_armor_move_speed", s.movementSpeedPercent(),
+                    AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        }
+    }
+
+    private boolean hasModifier(Player player, Attribute attribute, UUID uuid) {
+        var attr = player.getAttribute(attribute);
+        if (attr == null) {
+            return false;
+        }
+        for (AttributeModifier m : attr.getModifiers()) {
+            if (uuid.equals(m.getUniqueId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 移除该玩家的全部盔甲属性加成。 */

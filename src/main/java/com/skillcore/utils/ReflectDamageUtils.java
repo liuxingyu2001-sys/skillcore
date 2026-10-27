@@ -124,6 +124,10 @@ public final class ReflectDamageUtils {
         // 上限 10 分钟，避免配置写错导致 buff 永不过期
         long ticks = Math.min(durationTicks, 20L * 60L * 10L);
         long expire = System.currentTimeMillis() + ticks * 50L;
+        // 非玩家实体（怪物等）没有退出事件可清理，这里顺手清掉过期条目，防止 BUFFS 无限增长
+        if (BUFFS.size() > 64) {
+            BUFFS.entrySet().removeIf(e -> e.getValue().isExpired());
+        }
         BUFFS.put(entity.getUniqueId(), new ReflectBuff(p, f, expire, false));
     }
 
