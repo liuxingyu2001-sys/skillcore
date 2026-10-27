@@ -45,8 +45,10 @@ public final class SunfireArmorSkill implements ArmorSkill {
     @Override
     public void onEquip(ArmorContext ctx) {
         Player player = ctx.player();
-        State state = states.computeIfAbsent(player.getUniqueId(), uuid -> new State());
+        if (player == null) return;
         var plugin = SkillCorePlugin.getInstance();
+        if (plugin == null || !plugin.isEnabled()) return;
+        State state = states.computeIfAbsent(player.getUniqueId(), uuid -> new State());
 
         if (state.burnTask == null) {
             long intervalTicks = Math.max(1L,
@@ -102,14 +104,30 @@ public final class SunfireArmorSkill implements ArmorSkill {
         if (player == null || !player.isOnline() || player.isDead()) {
             return;
         }
+        var plugin = SkillCorePlugin.getInstance();
+        if (plugin == null || !plugin.isEnabled()) {
+            return;
+        }
         double radius = Math.max(0.5, ctx.stats().customDouble("sunfire-radius", 4.0));
         double flat = Math.max(0.0, ctx.stats().customDouble("sunfire-flat", 1.0));
         double percentMax = Math.max(0.0, ctx.stats().customDouble("sunfire-percent-max", 0.02));
+        if (flat <= 0 && percentMax <= 0) {
+            return;
+        }
         Particle particle = parseParticle(ctx.stats().customString("sunfire-particle", "FLAME"));
 
-        var targets = TargetFilter.filter(player, AreaUtils.getSphere(player.getLocation(), radius));
+        // 灼伤只针对敌人：过滤友军 / 宠物 / NPC / 盔甲架 / PvP 禁用世界
+        var targets = TargetFilter.filter(player, AreaUtils.getSphere(player.getLocation(), radius,
+                e -> TargetFilter.isAttackable(player, e)));
+        double cap = ctx.stats().customDouble("sunfire-damage-cap", 0.0);
         for (LivingEntity target : targets) {
             double damage = flat + DamageUtils.getMaxHealth(target) * percentMax;
+            if (cap > 0) {
+                damage = Math.min(damage, cap);
+            }
+            if (damage <= 0 || !Double.isFinite(damage)) {
+                continue;
+            }
             SkillDamageUtils.damage(target, damage, player, "SUNFIRE");
             ParticleUtils.hitMarker(target, particle);
         }

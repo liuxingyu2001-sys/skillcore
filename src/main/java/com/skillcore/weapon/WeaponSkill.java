@@ -81,6 +81,15 @@ public interface WeaponSkill {
     }
 
     /**
+     * 玩家退出时清理与该玩家相关的持久状态（可选的按玩家清理）。
+     * <p>
+     * 与 {@link #cleanup()} 的区别：cleanup 在插件禁用 / 重载时对全部玩家生效，
+     * 这里只处理单个玩家，避免玩家反复进出导致状态表无限增长。
+     */
+    default void onQuit(org.bukkit.entity.Player player) {
+    }
+
+    /**
      * 是否可以释放（冷却外的额外条件）。
      */
     default boolean canUse(WeaponContext ctx) {

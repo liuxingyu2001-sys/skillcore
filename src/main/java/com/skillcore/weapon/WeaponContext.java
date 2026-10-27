@@ -201,20 +201,21 @@ public final class WeaponContext {
         double first = damage(victim);
         if (count <= 1) return first;
         var plugin = com.skillcore.SkillCorePlugin.getInstance();
+        if (plugin == null) return first;
         var scheduler = plugin.getServer().getScheduler();
         for (int i = 1; i < count; i++) {
-            final double ratio = 1.0;
             scheduler.runTaskLater(plugin, () -> {
                 if (DamageUtils.isAlive(victim) && DamageUtils.isAlive(player)) {
                     damage(victim);
                 }
-            }, (long) (stats.hitIntervalTicks() * i));
+            }, Math.max(0L, (long) (stats.hitIntervalTicks() * i)));
         }
         return first;
     }
 
     /** AOE：对目标周围按 aoe-damage-ratio 造成溅射。 */
     public List<LivingEntity> aoeFrom(LivingEntity center, double radius) {
+        if (center == null || !DamageUtils.isAlive(center)) return List.of();
         double r = radius > 0 ? radius : stats.aoeRadius();
         List<LivingEntity> list = TargetFilter.filter(player,
                 com.skillcore.utils.AreaUtils.getSphere(center.getLocation(), r,
@@ -356,7 +357,7 @@ public final class WeaponContext {
 
     private Particle parseParticle(String name) {
         try {
-            return Particle.valueOf(name.toUpperCase());
+            return Particle.valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (Exception ex) {
             return Particle.CRIT;
         }
@@ -364,7 +365,7 @@ public final class WeaponContext {
 
     private org.bukkit.Sound parseSound(String name) {
         try {
-            return org.bukkit.Sound.valueOf(name.toUpperCase());
+            return org.bukkit.Sound.valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (Exception ex) {
             return org.bukkit.Sound.ENTITY_PLAYER_ATTACK_STRONG;
         }

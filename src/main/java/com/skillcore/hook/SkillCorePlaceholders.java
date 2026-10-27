@@ -8,6 +8,8 @@ import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import java.util.Locale;
+
 /**
  * PlaceholderAPI 占位符：
  * <ul>
@@ -55,7 +57,7 @@ public final class SkillCorePlaceholders extends PlaceholderExpansion {
             return "";
         }
         String weaponId = WeaponItems.getHeldWeaponId(plugin, player);
-        String key = params.toLowerCase();
+        String key = params == null ? "" : params.toLowerCase(Locale.ROOT);
         if (key.equals("has_weapon")) {
             return String.valueOf(weaponId != null);
         }
@@ -72,14 +74,15 @@ public final class SkillCorePlaceholders extends PlaceholderExpansion {
                 return plugin.getConfigManager().getConfig()
                         .getString("placeholders.no-weapon", "");
             }
-            boolean left = key.endsWith("_left");
+            // weapon_cd_left → 左键技能；weapon_cd / weapon_cd_right → 右键技能
+            boolean left = key.equals("weapon_cd_left");
             SkillTrigger trigger = left ? SkillTrigger.LEFT_CLICK : SkillTrigger.RIGHT_CLICK;
             double remaining = plugin.getWeaponManager().getCooldownRemaining(player, weaponId, trigger);
             if (remaining <= 0) {
                 return plugin.getConfigManager().getConfig()
                         .getString("placeholders.ready", "&a就绪");
             }
-            return "&e" + String.format("%.1f", remaining) + "s";
+            return "&e" + String.format(Locale.ROOT, "%.1f", remaining) + "s";
         }
         if (key.equals("armor_set") || key.equals("armor_set_id")) {
             var set = plugin.getArmorManager() != null ? plugin.getArmorManager().getActiveSet(player) : null;

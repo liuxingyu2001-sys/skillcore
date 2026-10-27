@@ -27,7 +27,7 @@ public final class SkillDamageUtils {
      * @return 实际造成的伤害数值（0 表示被拦截）
      */
     public static double damage(LivingEntity target, double amount, LivingEntity source, String skill) {
-        if (target == null || amount <= 0 || !DamageUtils.isAlive(target)) {
+        if (target == null || !Double.isFinite(amount) || amount <= 0 || !DamageUtils.isAlive(target)) {
             return 0.0;
         }
         if (target instanceof org.bukkit.entity.Player player && DamageUtils.isInvulnerable(player)) {
@@ -79,7 +79,9 @@ public final class SkillDamageUtils {
     /** 清除技能伤害标记。 */
     public static void clearSkillDamage(LivingEntity target) {
         if (target == null) return;
-        target.removeMetadata(META_SKILL, SkillCorePlugin.getInstance());
-        target.removeMetadata(META_SOURCE, SkillCorePlugin.getInstance());
+        SkillCorePlugin plugin = SkillCorePlugin.getInstance();
+        if (plugin == null) return;
+        target.removeMetadata(META_SKILL, plugin);
+        target.removeMetadata(META_SOURCE, plugin);
     }
 }

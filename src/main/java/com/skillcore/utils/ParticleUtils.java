@@ -204,8 +204,16 @@ public final class ParticleUtils {
         if (!EffectSettings.particlesEnabled() || from == null || to == null || from.getWorld() == null) {
             return;
         }
+        // 跨世界调用 Location#distance 会抛 IllegalArgumentException
+        if (to.getWorld() == null || !from.getWorld().equals(to.getWorld())) {
+            return;
+        }
         double distance = from.distance(to);
-        int points = Math.max(1, (int) (distance / Math.max(0.1, step)));
+        if (!Double.isFinite(distance)) {
+            return;
+        }
+        // 距离过大时封顶点数，避免一次连线画出上万个粒子
+        int points = Math.max(1, Math.min((int) (distance / Math.max(0.1, step)), 1024));
         for (int i = 0; i <= points; i++) {
             Location p = from.clone().add(to.clone().subtract(from).multiply(i / (double) points));
             spawn(p, particle, 1);
@@ -223,12 +231,15 @@ public final class ParticleUtils {
      */
     public static List<Location> boltPoints(Location from, Location to, double jaggedness, int segments) {
         List<Location> points = new ArrayList<>();
-        if (from == null || to == null || from.getWorld() == null) {
+        if (from == null || to == null || from.getWorld() == null
+                || to.getWorld() == null || !from.getWorld().equals(to.getWorld())) {
             return points;
         }
+        // 抖动幅度非法会让折线点变成 NaN，直接当 0 处理（纯直线闪电）
+        double jag = Double.isFinite(jaggedness) ? Math.max(0.0, jaggedness) : 0.0;
         points.add(from.clone());
         double len = from.distance(to);
-        if (len < 1.0e-6 || segments < 2) {
+        if (!Double.isFinite(len) || len < 1.0e-6 || segments < 2) {
             points.add(to.clone());
             return points;
         }
@@ -239,7 +250,7 @@ public final class ParticleUtils {
             double t = i / (double) n;
             // 中间抖动最大，两端贴近端点
             double envelope = Math.sin(Math.PI * t);
-            double offset = (Math.random() * 2 - 1) * jaggedness * len / n * envelope * 4;
+            double offset = (Math.random() * 2 - 1) * jag * len / n * envelope * 4;
             points.add(from.clone()
                     .add(step.clone().multiply(t * len))
                     .add(perp.clone().multiply(offset)));
@@ -387,7 +398,7 @@ public final class ParticleUtils {
 
     private static Particle fallback() {
         try {
-            return Particle.valueOf(EffectSettings.fallbackParticle().toUpperCase());
+            return Particle.valueOf(EffectSettings.fallbackParticle().toUpperCase(java.util.Locale.ROOT));
         } catch (Exception ex) {
             return Particle.ENCHANT;
         }

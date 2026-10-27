@@ -1,7 +1,11 @@
 package com.skillcore.utils;
 
+import java.util.Locale;
+
 /**
- * Time / duration formatting utilities.
+ * 时间 / 时长格式化工具。
+ * <p>
+ * 所有格式化固定 {@link Locale#ROOT}，避免某些语言环境把小数点输出成逗号。
  */
 public final class TimeUtils {
 
@@ -13,7 +17,10 @@ public final class TimeUtils {
     }
 
     public static long secondsToMillis(double seconds) {
-        return (long) (seconds * 1000L);
+        if (!Double.isFinite(seconds) || seconds <= 0) {
+            return 0L;
+        }
+        return (long) Math.min(seconds * 1000.0, 86_400_000.0);
     }
 
     public static double millisToSeconds(long millis) {
@@ -21,7 +28,10 @@ public final class TimeUtils {
     }
 
     public static long secondsToTicks(double seconds) {
-        return (long) (seconds * 20L);
+        if (!Double.isFinite(seconds) || seconds <= 0) {
+            return 0L;
+        }
+        return (long) Math.min(seconds * 20.0, 1_728_000.0);
     }
 
     public static double ticksToSeconds(long ticks) {
@@ -29,17 +39,19 @@ public final class TimeUtils {
     }
 
     /**
-     * Format seconds as "3.2s" / "45s" / "1m 5s" / "2h 3m".
+     * 格式化为 {@code 3.2s} / {@code 45s} / {@code 1m 5s} / {@code 2h 3m}。
+     * <p>
+     * 负数与非有限值统一显示 {@code 0s}。
      */
     public static String formatSeconds(double seconds) {
-        if (seconds < 0) {
+        if (!Double.isFinite(seconds) || seconds < 0) {
             return "0s";
         }
         if (seconds < 10) {
-            return String.format("%.1fs", seconds);
+            return String.format(Locale.ROOT, "%.1fs", seconds);
         }
         if (seconds < 60) {
-            return String.format("%.0fs", seconds);
+            return String.format(Locale.ROOT, "%.0fs", seconds);
         }
         if (seconds < 3600) {
             long m = (long) (seconds / 60);
@@ -51,30 +63,22 @@ public final class TimeUtils {
         return m == 0 ? h + "h" : h + "h " + m + "m";
     }
 
-    /**
-     * Format millis as "3.2s".
-     */
+    /** 毫秒格式化为 {@code 3.2s}。 */
     public static String formatMillis(long millis) {
         return formatSeconds(millis / 1000.0);
     }
 
-    /**
-     * Whether a timestamp (millis) has expired.
-     */
+    /** 时间戳（毫秒）是否已过期。 */
     public static boolean isExpired(long expireAtMillis) {
         return System.currentTimeMillis() >= expireAtMillis;
     }
 
-    /**
-     * Remaining millis until timestamp (0 if expired).
-     */
+    /** 距离时间戳还剩多少毫秒（已过期返回 0）。 */
     public static long remainingMillis(long expireAtMillis) {
         return Math.max(0, expireAtMillis - System.currentTimeMillis());
     }
 
-    /**
-     * Remaining seconds until timestamp.
-     */
+    /** 距离时间戳还剩多少秒。 */
     public static double remainingSeconds(long expireAtMillis) {
         return remainingMillis(expireAtMillis) / 1000.0;
     }

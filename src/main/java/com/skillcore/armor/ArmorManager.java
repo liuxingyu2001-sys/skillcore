@@ -59,28 +59,29 @@ public final class ArmorManager {
         String setId = detectFullSet(player);
         UUID uuid = player.getUniqueId();
         String prev = activeSets.get(uuid);
-        if (setId == null) {
+        ArmorSet newSet = setId == null ? null : registry.get(setId);
+        // 未集齐，或者集齐了但套装未注册（例如配置被删除）— 都按“无套装”处理
+        if (newSet == null) {
             if (prev != null) {
                 activeSets.remove(uuid);
                 removeAllPassiveAttributes(player);
-                unequipSkill(player, registry.get(prev));
             }
+            // 即使 activeSets 与 activeSkills 不一致，也保证技能被清理
+            unequipSkill(player, prev == null ? null : registry.get(prev));
             return;
         }
-        if (setId.equals(prev)) {
+        if (prev != null && newSet.id().equalsIgnoreCase(prev)) {
             return;
         }
-        activeSets.put(uuid, setId);
-        ArmorSet prevSet = prev == null ? null : registry.get(prev);
-        ArmorSet newSet = registry.get(setId);
-        if (prevSet != null) {
+        activeSets.put(uuid, newSet.id());
+        if (prev != null) {
             removeAllPassiveAttributes(player);
-            unequipSkill(player, prevSet);
+            unequipSkill(player, registry.get(prev));
         }
         applyPassiveAttributes(player, newSet);
         equipSkill(player, newSet);
         if (plugin.getConfigManager().isDebug()) {
-            plugin.getLogger().info(player.getName() + " 穿戴整套盔甲: " + setId);
+            plugin.getLogger().info(player.getName() + " 穿戴整套盔甲: " + newSet.id());
         }
     }
 
@@ -145,6 +146,8 @@ public final class ArmorManager {
         }
         ArmorSkill skill = factory.createSkill(set.skillType(), set);
         if (skill == null) {
+            plugin.getLogger().warning("未知盔甲技能类型: " + set.skillType()
+                    + "（套装 " + set.id() + "），请检查 armor/*.yml 的 skill 键");
             return;
         }
         activeSkills.put(player.getUniqueId(), skill);
@@ -265,16 +268,25 @@ public final class ArmorManager {
         if (playerId == null) {
             return;
         }
-        activeSets.remove(playerId);
+        Player player = plugin.getServer().getPlayer(playerId);
+        String prev = activeSets.remove(playerId);
+        ArmorSet prevSet = prev == null ? null : registry.get(prev);
         ArmorSkill skill = activeSkills.remove(playerId);
         if (skill != null) {
+            // 在线时先走 onUnequip（例如关闭 BossBar / 恢复属性），再 cleanup
+            if (player != null && player.isOnline()) {
+                try {
+                    skill.onUnequip(new ArmorContext(player, prevSet));
+                } catch (Exception ex) {
+                    plugin.getLogger().severe("Armor skill unequip error: " + ex);
+                }
+            }
             try {
                 skill.cleanup();
             } catch (Exception ex) {
                 plugin.getLogger().severe("Armor skill cleanup error: " + ex);
             }
         }
-        Player player = plugin.getServer().getPlayer(playerId);
         if (player != null && player.isOnline()) {
             removeAllPassiveAttributes(player);
         }
@@ -282,6 +294,20 @@ public final class ArmorManager {
 
     /** 重载 / 禁用时清理全部状态。 */
     public void clearAll() {
+        // 先在线的玩家走一次 onUnequip（关闭 BossBar / 恢复临时状态），再统一 cleanup
+        for (Map.Entry<UUID, ArmorSkill> entry : activeSkills.entrySet()) {
+            Player player = plugin.getServer().getPlayer(entry.getKey());
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            String setId = activeSets.get(entry.getKey());
+            ArmorSet set = setId == null ? null : registry.get(setId);
+            try {
+                entry.getValue().onUnequip(new ArmorContext(player, set));
+            } catch (Exception ex) {
+                plugin.getLogger().severe("Armor skill unequip error: " + ex);
+            }
+        }
         for (ArmorSkill skill : activeSkills.values()) {
             try {
                 skill.cleanup();
@@ -316,7 +342,9 @@ public final class ArmorManager {
             if (item.getType() == Material.AIR) {
                 continue;
             }
-            player.getInventory().addItem(item);
+            for (ItemStack leftover : player.getInventory().addItem(item).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+            }
             any = true;
         }
         return any;

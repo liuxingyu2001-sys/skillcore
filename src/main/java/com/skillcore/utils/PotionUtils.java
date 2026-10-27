@@ -21,10 +21,12 @@ public final class PotionUtils {
 
     public static boolean apply(LivingEntity entity, PotionEffectType type, int durationTicks, int amplifier,
                                 boolean ambient, boolean particles) {
-        if (entity == null || type == null || !DamageUtils.isAlive(entity)) {
+        if (entity == null || type == null || !DamageUtils.isAlive(entity) || durationTicks <= 0) {
             return false;
         }
-        PotionEffect effect = new PotionEffect(type, durationTicks, amplifier, ambient, particles, true);
+        // 原版 amplifier 上限 255，配置写超了会被服务端拒绝
+        int amp = Math.max(0, Math.min(amplifier, 255));
+        PotionEffect effect = new PotionEffect(type, durationTicks, amp, ambient, particles, true);
         return entity.addPotionEffect(effect);
     }
 

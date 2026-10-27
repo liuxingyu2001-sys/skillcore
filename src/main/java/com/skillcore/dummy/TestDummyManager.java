@@ -16,6 +16,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityCombustEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.persistence.PersistentDataType;
@@ -41,6 +43,10 @@ public final class TestDummyManager implements Listener {
     private final Map<UUID, Double> tracked = new ConcurrentHashMap<>();
     private File file;
     private FileConfiguration config;
+    /** 恢复过程中不写盘，避免每个假人都重写一次 testdummy.yml。 */
+    private boolean restoring;
+    /** 主动 clear 时不要保留旧文件条目。 */
+    private boolean suppressPreserve;
 
     public TestDummyManager(SkillCorePlugin plugin) {
         this.plugin = plugin;
@@ -70,7 +76,11 @@ public final class TestDummyManager implements Listener {
     }
 
     private double defaultHealth() {
-        return config.getDouble("dummy.health", 100.0);
+        double hp = config.getDouble("dummy.health", 100.0);
+        if (!Double.isFinite(hp) || hp <= 0) {
+            return 100.0;
+        }
+        return Math.min(hp, 2048.0);
     }
 
     // ------------------------------------------------------------------
@@ -83,26 +93,40 @@ public final class TestDummyManager implements Listener {
 
     public LivingEntity spawn(Location location, double health) {
         if (location == null || location.getWorld() == null) return null;
-        double hp = health > 0 ? health : defaultHealth();
+        double requested = Double.isFinite(health) && health > 0 ? health : defaultHealth();
+        final double hp = Math.max(1.0, Math.min(requested, 2048.0));
         World world = location.getWorld();
-        Zombie zombie = world.spawn(location, Zombie.class, z -> {
-            z.setAI(!config.getBoolean("dummy.no-ai", true));
-            z.setSilent(config.getBoolean("dummy.silent", true));
-            z.setRemoveWhenFarAway(false);
-            z.setPersistent(true);
-            z.setCanPickupItems(false);
-            z.setCollidable(false);
-            z.setCustomNameVisible(true);
-            z.customName(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                    .legacyAmpersand().deserialize(dummyName()));
-            z.getEquipment().clear();
-            if (z.getAttribute(Attribute.MAX_HEALTH) != null) {
+        String name = dummyName();
+        if (name == null || name.isBlank()) {
+            name = "&c测试假人";
+        }
+        final String displayName = name;
+        Zombie zombie;
+        try {
+            zombie = world.spawn(location, Zombie.class, z -> {
+                z.setAI(!config.getBoolean("dummy.no-ai", true));
+                z.setSilent(config.getBoolean("dummy.silent", true));
+                z.setRemoveWhenFarAway(false);
+                z.setPersistent(true);
+                z.setCanPickupItems(false);
+                z.setCollidable(false);
+                z.setCustomNameVisible(true);
+                z.customName(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+                        .legacyAmpersand().deserialize(displayName));
+                z.getEquipment().clear();
                 AttributeInstance attr = z.getAttribute(Attribute.MAX_HEALTH);
-                attr.setBaseValue(hp);
-                z.setHealth(hp);
-            }
-            z.getPersistentDataContainer().set(dummyKey, PersistentDataType.STRING, "true");
-        });
+                if (attr != null) {
+                    attr.setBaseValue(hp);
+                    // 服务端会按属性上限收敛，这里按实际上限设置当前血量，避免 setHealth 越界
+                    z.setHealth(Math.min(hp, attr.getValue()));
+                }
+                z.getPersistentDataContainer().set(dummyKey, PersistentDataType.STRING, "true");
+            });
+        } catch (Exception ex) {
+            plugin.getLogger().log(Level.WARNING, "生成测试假人失败: " + ex.getMessage(), ex);
+            return null;
+        }
+        if (zombie == null) return null;
         tracked.put(zombie.getUniqueId(), hp);
         save();
         return zombie;
@@ -127,7 +151,12 @@ public final class TestDummyManager implements Listener {
             }
         }
         tracked.clear();
-        save();
+        suppressPreserve = true;
+        try {
+            save();
+        } finally {
+            suppressPreserve = false;
+        }
         return removed;
     }
 
@@ -145,8 +174,18 @@ public final class TestDummyManager implements Listener {
             }
         }
         tracked.clear();
-        save();
+        suppressPreserve = true;
+        try {
+            save();
+        } finally {
+            suppressPreserve = false;
+        }
         return removed;
+    }
+
+    /** 插件禁用时清理（假人会持久化，这里不删除实体，只保存状态）。 */
+    public void shutdown() {
+        save();
     }
 
     public List<LivingEntity> list() {
@@ -165,13 +204,27 @@ public final class TestDummyManager implements Listener {
     // ------------------------------------------------------------------
 
     private void save() {
-        if (config == null) return;
-        config.set("dummies", new ArrayList<String>());
+        if (config == null || restoring) return;
+        // 旧文件条目：用于保留“实体所在区块/世界当前未加载”的假人，避免一次保存就永久丢失
+        Map<UUID, String> previous = new java.util.HashMap<>();
+        for (String raw : config.getStringList("dummies")) {
+            String[] parts = raw.split(";");
+            if (parts.length < 6) continue;
+            try {
+                previous.put(UUID.fromString(parts[0]), raw);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
         List<String> entries = new ArrayList<>();
         for (Map.Entry<UUID, Double> e : tracked.entrySet()) {
             Entity entity = Bukkit.getEntity(e.getKey());
-            if (entity == null) continue;
+            if (entity == null) {
+                String old = previous.get(e.getKey());
+                if (old != null) entries.add(old);
+                continue;
+            }
             Location loc = entity.getLocation();
+            if (loc.getWorld() == null) continue;
             entries.add(String.join(";",
                     e.getKey().toString(),
                     loc.getWorld().getName(),
@@ -179,6 +232,16 @@ public final class TestDummyManager implements Listener {
                     String.valueOf(loc.getY()),
                     String.valueOf(loc.getZ()),
                     String.valueOf(e.getValue())));
+        }
+        // 主动 clear 时不要保留旧条目
+        if (!suppressPreserve) {
+            for (Map.Entry<UUID, String> e : previous.entrySet()) {
+                if (tracked.containsKey(e.getKey())) continue;
+                Entity entity = Bukkit.getEntity(e.getKey());
+                if (entity == null || !entity.isValid()) {
+                    entries.add(e.getValue());
+                }
+            }
         }
         config.set("dummies", entries);
         try {
@@ -190,22 +253,51 @@ public final class TestDummyManager implements Listener {
 
     private void restore() {
         if (config == null) return;
-        for (String raw : config.getStringList("dummies")) {
-            String[] parts = raw.split(";");
-            if (parts.length < 6) continue;
+        List<String> entries = config.getStringList("dummies");
+        if (entries.isEmpty()) return;
+        // 延迟 1 tick，确保世界/区块已就绪；整批恢复期间不写盘，最后统一保存一次
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            restoring = true;
             try {
-                World world = Bukkit.getWorld(parts[1]);
-                if (world == null) continue;
-                Location loc = new Location(world,
-                        Double.parseDouble(parts[2]),
-                        Double.parseDouble(parts[3]),
-                        Double.parseDouble(parts[4]));
-                double hp = Double.parseDouble(parts[5]);
-                // 延迟 1 tick，确保世界已加载
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> spawn(loc, hp), 1L);
-            } catch (NumberFormatException ex) {
-                plugin.getLogger().warning("Invalid testdummy entry: " + raw);
+                for (String raw : entries) {
+                    restoreEntry(raw);
+                }
+            } finally {
+                restoring = false;
             }
+            save();
+        }, 1L);
+    }
+
+    private void restoreEntry(String raw) {
+        String[] parts = raw.split(";");
+        if (parts.length < 6) return;
+        try {
+            UUID id = UUID.fromString(parts[0]);
+            World world = Bukkit.getWorld(parts[1]);
+            if (world == null) return;
+            double x = Double.parseDouble(parts[2]);
+            double y = Double.parseDouble(parts[3]);
+            double z = Double.parseDouble(parts[4]);
+            double hp = Double.parseDouble(parts[5]);
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                    || !Double.isFinite(hp) || hp <= 0) {
+                return;
+            }
+            Location loc = new Location(world, x, y, z);
+            // 僵尸是持久化实体：先加载区块再按 UUID 查找，避免重启后重复生成
+            Entity existing = Bukkit.getEntity(id);
+            if (existing == null) {
+                world.getChunkAt(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+                existing = Bukkit.getEntity(id);
+            }
+            if (existing instanceof LivingEntity living && living.isValid() && isDummy(living)) {
+                tracked.put(id, hp);
+                return;
+            }
+            spawn(loc, hp);
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("Invalid testdummy entry: " + raw);
         }
     }
 
@@ -215,6 +307,17 @@ public final class TestDummyManager implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCombust(EntityCombustEvent event) {
+        if (isDummy(event.getEntity())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** 免疫摔落/火焰/中毒/虚空等环境伤害，只接受战斗伤害（方便测数值）。 */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEnvironmentDamage(EntityDamageEvent event) {
+        if (event instanceof EntityDamageByEntityEvent) {
+            return;
+        }
         if (isDummy(event.getEntity())) {
             event.setCancelled(true);
         }

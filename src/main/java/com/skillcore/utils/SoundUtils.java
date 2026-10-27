@@ -16,7 +16,8 @@ public final class SoundUtils {
     }
 
     public static void play(Location location, Sound sound, float volume, float pitch) {
-        if (location == null || location.getWorld() == null || sound == null) {
+        if (location == null || location.getWorld() == null || sound == null
+                || !finite(volume) || !finite(pitch)) {
             return;
         }
         location.getWorld().playSound(location, sound, volume, pitch);
@@ -30,7 +31,7 @@ public final class SoundUtils {
     }
 
     public static void playToPlayer(Player player, Sound sound, float volume, float pitch) {
-        if (player == null || sound == null) {
+        if (player == null || sound == null || !finite(volume) || !finite(pitch)) {
             return;
         }
         player.playSound(player.getLocation(), sound, volume, pitch);
@@ -49,7 +50,8 @@ public final class SoundUtils {
      * Radius-based sound (hearable within range).
      */
     public static void playRadius(Location center, Sound sound, float volume, float pitch, double radius) {
-        if (center == null || center.getWorld() == null) {
+        if (center == null || center.getWorld() == null || sound == null
+                || !Double.isFinite(radius) || radius <= 0) {
             return;
         }
         double radiusSq = radius * radius;
@@ -58,6 +60,11 @@ public final class SoundUtils {
                 player.playSound(center, sound, volume, pitch);
             }
         }
+    }
+
+    /** 音量/音调必须是有限值，NaN 会让客户端静音甚至报错。 */
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value) && value >= 0f;
     }
 
     // Common skill sounds

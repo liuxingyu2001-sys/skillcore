@@ -23,7 +23,8 @@ public final class LifestealUtils {
      * @return amount healed (0 if invalid)
      */
     public static double healByDamagePercent(LivingEntity attacker, double damageDealt, double percent) {
-        if (attacker == null || damageDealt <= 0 || percent <= 0) {
+        if (attacker == null || !Double.isFinite(damageDealt) || !Double.isFinite(percent)
+                || damageDealt <= 0 || percent <= 0) {
             return 0.0;
         }
         return heal(attacker, damageDealt * percent);
@@ -33,10 +34,13 @@ public final class LifestealUtils {
      * Flat heal (absolute HP).
      */
     public static double heal(LivingEntity entity, double amount) {
-        if (entity == null || amount <= 0 || !DamageUtils.isAlive(entity)) {
+        if (entity == null || !Double.isFinite(amount) || amount <= 0 || !DamageUtils.isAlive(entity)) {
             return 0.0;
         }
         double max = DamageUtils.getMaxHealth(entity);
+        if (!Double.isFinite(max) || max <= 0) {
+            return 0.0;
+        }
         double before = entity.getHealth();
         double after = Math.min(max, before + amount);
         double healed = after - before;
@@ -53,13 +57,17 @@ public final class LifestealUtils {
      * @return total effective heal (hp + absorption gained)
      */
     public static double healWithOverheal(LivingEntity entity, double amount, double maxAbsorption) {
-        if (entity == null || amount <= 0 || !DamageUtils.isAlive(entity)) {
+        if (entity == null || !Double.isFinite(amount) || amount <= 0 || !DamageUtils.isAlive(entity)) {
             return 0.0;
         }
         double healed = heal(entity, amount);
         double leftover = amount - healed;
-        if (leftover > 0) {
+        // 上限非法（NaN / 负数）时不产生吸收量，避免把吸收设置成 NaN
+        if (leftover > 0 && Double.isFinite(maxAbsorption) && maxAbsorption > 0) {
             double currentAbs = entity.getAbsorptionAmount();
+            if (!Double.isFinite(currentAbs) || currentAbs < 0) {
+                currentAbs = 0.0;
+            }
             double absGain = Math.min(maxAbsorption - currentAbs, leftover);
             if (absGain > 0) {
                 entity.setAbsorptionAmount(currentAbs + absGain);
@@ -73,7 +81,7 @@ public final class LifestealUtils {
      * Heal a percentage of the attacker's max health.
      */
     public static double healByMaxHealthPercent(LivingEntity attacker, double percent) {
-        if (attacker == null || percent <= 0) {
+        if (attacker == null || !Double.isFinite(percent) || percent <= 0) {
             return 0.0;
         }
         return heal(attacker, DamageUtils.getMaxHealth(attacker) * percent);
@@ -83,7 +91,7 @@ public final class LifestealUtils {
      * Heal a percentage of the target's max health (vampiric style).
      */
     public static double healByTargetMaxHealth(LivingEntity attacker, LivingEntity target, double percent) {
-        if (attacker == null || target == null || percent <= 0) {
+        if (attacker == null || target == null || !Double.isFinite(percent) || percent <= 0) {
             return 0.0;
         }
         return heal(attacker, DamageUtils.getMaxHealth(target) * percent);
@@ -107,10 +115,14 @@ public final class LifestealUtils {
             boolean allowOverheal,
             double maxAbsorption
     ) {
-        if (attacker == null || damageDealt <= 0 || percent <= 0) {
+        if (attacker == null || !Double.isFinite(damageDealt) || !Double.isFinite(percent)
+                || damageDealt <= 0 || percent <= 0) {
             return 0.0;
         }
         double amount = damageDealt * percent;
+        if (!Double.isFinite(amount)) {
+            return 0.0;
+        }
         if (maxHeal > 0) {
             amount = Math.min(amount, maxHeal);
         }

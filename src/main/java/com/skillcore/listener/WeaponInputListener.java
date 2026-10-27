@@ -180,6 +180,7 @@ public final class WeaponInputListener implements Listener {
         UUID id = event.getPlayer().getUniqueId();
         clearState(id);
         weaponManager.clearPlayerState(id);
+        weaponManager.notifyQuit(event.getPlayer());
         // 玩家退出即清理其全部冷却记录，避免 COOLDOWNS 无限增长
         com.skillcore.utils.CooldownUtils.clearAll(id);
     }

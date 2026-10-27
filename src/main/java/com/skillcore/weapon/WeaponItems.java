@@ -45,12 +45,15 @@ public final class WeaponItems {
         if (meta == null) return item;
 
         applyMeta(meta, weapon, ceApplied);
-        item.setItemMeta(meta);
-
+        // PDC 与外观一次写入，避免 create 里再克隆一次 ItemMeta
         Plugin plugin = com.skillcore.SkillCorePlugin.getInstance();
         if (plugin != null) {
-            mark(plugin, item, weapon.id());
+            meta.getPersistentDataContainer().set(
+                    new NamespacedKey(plugin, KEY_WEAPON_ID),
+                    PersistentDataType.STRING,
+                    weapon.id());
         }
+        item.setItemMeta(meta);
         return item;
     }
 
@@ -60,7 +63,7 @@ public final class WeaponItems {
      * @return true 表示物品是技能武器且已更新
      */
     public static boolean updateLore(ItemStack item, SkillWeapon weapon) {
-        if (item == null || item.getType() == Material.AIR || weapon == null) return false;
+        if (item == null || item.getType() == Material.AIR || weapon == null || !item.hasItemMeta()) return false;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
 
@@ -125,14 +128,16 @@ public final class WeaponItems {
      * 解析附魔 key（如 wind_burst / minecraft:sharpness）。
      */
     public static Enchantment resolveEnchantment(String key) {
-        if (key == null || key.isEmpty()) return null;
-        NamespacedKey namespacedKey = key.contains(":")
-                ? NamespacedKey.fromString(key)
-                : NamespacedKey.minecraft(key.toLowerCase());
-        if (namespacedKey == null) return null;
+        if (key == null || key.isBlank()) return null;
         try {
+            String trimmed = key.trim();
+            NamespacedKey namespacedKey = trimmed.contains(":")
+                    ? NamespacedKey.fromString(trimmed)
+                    : NamespacedKey.minecraft(trimmed.toLowerCase(java.util.Locale.ROOT));
+            if (namespacedKey == null) return null;
             return org.bukkit.Registry.ENCHANTMENT.get(namespacedKey);
         } catch (Exception ex) {
+            // 配置里写错附魔 key 时不要让整个物品构建失败
             return null;
         }
     }
@@ -172,6 +177,7 @@ public final class WeaponItems {
     }
 
     public static String getHeldWeaponId(Plugin plugin, org.bukkit.entity.Player player) {
+        if (player == null) return null;
         return getWeaponId(plugin, player.getInventory().getItemInMainHand());
     }
 }

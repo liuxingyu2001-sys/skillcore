@@ -15,9 +15,10 @@ public final class SoundEffect implements SkillEffect {
 
     public SoundEffect(Sound sound, float volume, float pitch, double radius) {
         this.sound = sound;
-        this.volume = volume;
-        this.pitch = pitch;
-        this.radius = radius;
+        // 音量 0~10、音调 0~2（与原版一致），非法值回退默认
+        this.volume = Float.isFinite(volume) && volume >= 0 ? Math.min(volume, 10.0f) : 1.0f;
+        this.pitch = Float.isFinite(pitch) && pitch > 0 ? Math.min(pitch, 2.0f) : 1.0f;
+        this.radius = Double.isFinite(radius) ? radius : 0.0;
     }
 
     @Override

@@ -16,26 +16,24 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Aiming / targeting toolkit (瞄准).
+ * 瞄准 / 选怪工具 — 射线、锥形、最近目标、预判、视线检测。
  * <p>
- * Raycast, cone targeting, nearest enemy, crosshair lock-on,
- * prediction aim (lead target), line-of-sight checks.
+ * 统一使用包围盒 / 射线 API，不做全图实体遍历。
  */
 public final class AimUtils {
 
     private AimUtils() {
     }
 
+    private static boolean goodRange(double range) {
+        return Double.isFinite(range) && range > 0;
+    }
+
     // ------------------------------------------------------------------
-    // Raycast
+    // 射线
     // ------------------------------------------------------------------
 
-    /**
-     * Raycast from eye location along view direction.
-     *
-     * @param maxDistance max reach
-     * @return first living entity hit, or null
-     */
+    /** 从眼睛沿视线射线，返回第一个可攻击生物。 */
     public static LivingEntity raycastEntity(Player player, double maxDistance) {
         return raycastEntity(player, maxDistance, e -> e instanceof LivingEntity living
                 && !living.equals(player)
@@ -43,12 +41,12 @@ public final class AimUtils {
     }
 
     public static LivingEntity raycastEntity(Player player, double maxDistance, Predicate<Entity> filter) {
-        if (player == null) {
+        if (player == null || !goodRange(maxDistance)) {
             return null;
         }
         RayTraceResult result = player.getWorld().rayTraceEntities(
                 player.getEyeLocation(),
-                player.getLocation().getDirection(),
+                player.getEyeLocation().getDirection(),
                 maxDistance,
                 0.3,
                 filter
@@ -59,59 +57,56 @@ public final class AimUtils {
         return result.getHitEntity() instanceof LivingEntity living ? living : null;
     }
 
-    /**
-     * Raycast for any entity including blocks. Returns hit entity or null.
-     */
+    /** 射线拾取任意实体（含非生物）。 */
     public static Entity raycastAny(Player player, double maxDistance) {
-        if (player == null) {
+        if (player == null || !goodRange(maxDistance)) {
             return null;
         }
         RayTraceResult result = player.getWorld().rayTraceEntities(
                 player.getEyeLocation(),
-                player.getLocation().getDirection(),
+                player.getEyeLocation().getDirection(),
                 maxDistance,
                 0.2
         );
         return result == null ? null : result.getHitEntity();
     }
 
-    /**
-     * Raytrace blocks only.
-     */
+    /** 只对方块做射线，返回命中点。 */
     public static Location raycastBlock(Player player, double maxDistance) {
-        if (player == null) {
+        if (player == null || !goodRange(maxDistance)) {
             return null;
         }
         RayTraceResult result = player.getWorld().rayTraceBlocks(
                 player.getEyeLocation(),
-                player.getLocation().getDirection(),
+                player.getEyeLocation().getDirection(),
                 maxDistance
         );
-        return result == null ? null : result.getHitPosition().toLocation(player.getWorld());
+        return result == null || result.getHitPosition() == null
+                ? null
+                : result.getHitPosition().toLocation(player.getWorld());
     }
 
-    /**
-     * Get target at crosshair (entity preferred, else block).
-     */
+    /** 准星位置：优先实体身体中心，其次方块命中点，最后视线尽头。 */
     public static Location getAimLocation(Player player, double maxDistance) {
-        LivingEntity entity = raycastEntity(player, maxDistance);
+        if (player == null) {
+            return null;
+        }
+        double range = goodRange(maxDistance) ? maxDistance : 32.0;
+        LivingEntity entity = raycastEntity(player, range);
         if (entity != null) {
             return entity.getLocation().add(0, entity.getHeight() / 2.0, 0);
         }
-        Location blockHit = raycastBlock(player, maxDistance);
-        return blockHit != null ? blockHit : player.getEyeLocation().add(player.getLocation().getDirection().multiply(maxDistance));
+        Location blockHit = raycastBlock(player, range);
+        return blockHit != null
+                ? blockHit
+                : player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(range));
     }
 
     // ------------------------------------------------------------------
-    // Cone / area aim
+    // 锥形 / 范围
     // ------------------------------------------------------------------
 
-    /**
-     * Find living entities inside a cone from the eye.
-     *
-     * @param angleDegrees half-angle of the cone (0-180)
-     * @param maxDistance  range
-     */
+    /** 眼睛前方锥形范围内的生物。 */
     public static List<LivingEntity> getConeTargets(LivingEntity caster, double angleDegrees, double maxDistance) {
         return getConeTargets(caster, angleDegrees, maxDistance, e -> true);
     }
@@ -123,14 +118,18 @@ public final class AimUtils {
             Predicate<LivingEntity> filter
     ) {
         List<LivingEntity> result = new ArrayList<>();
-        if (caster == null || caster.getWorld() == null) {
+        if (caster == null || caster.getWorld() == null || !goodRange(maxDistance)) {
             return result;
         }
         Location eye = caster.getEyeLocation();
-        Vector forward = eye.getDirection().normalize();
-        double cosLimit = Math.cos(Math.toRadians(Math.max(0.1, Math.min(180.0, angleDegrees))));
+        Vector forward = eye.getDirection();
+        if (forward.lengthSquared() < 1.0e-8) {
+            return result;
+        }
+        forward.normalize();
+        double angle = Double.isFinite(angleDegrees) ? Math.max(0.1, Math.min(180.0, angleDegrees)) : 45.0;
+        double cosLimit = Math.cos(Math.toRadians(angle));
 
-        // 用包围盒先缩小候选集，避免遍历全图实体
         for (Entity entity : caster.getWorld().getNearbyEntities(eye, maxDistance, maxDistance, maxDistance)) {
             if (!(entity instanceof LivingEntity living)) {
                 continue;
@@ -146,32 +145,33 @@ public final class AimUtils {
             if (distance > maxDistance || distance < 1.0e-6) {
                 continue;
             }
-            double dot = toTarget.normalize().dot(forward);
-            if (dot >= cosLimit) {
+            if (toTarget.normalize().dot(forward) >= cosLimit) {
                 result.add(living);
             }
         }
         return result;
     }
 
-    /**
-     * Nearest living entity in a direction / cone (best aim assist target).
-     */
+    /** 锥形内评分最高的目标（越靠近准星、越近分越高）。 */
     public static LivingEntity getBestConeTarget(LivingEntity caster, double angleDegrees, double maxDistance) {
+        if (caster == null || !goodRange(maxDistance)) {
+            return null;
+        }
+        Location eye = caster.getEyeLocation();
+        Vector forward = eye.getDirection();
+        if (forward.lengthSquared() < 1.0e-8) {
+            return null;
+        }
+        forward.normalize();
         LivingEntity best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
-        Location eye = caster.getEyeLocation();
-        Vector forward = eye.getDirection().normalize();
-        double cosLimit = Math.cos(Math.toRadians(Math.max(0.1, Math.min(180.0, angleDegrees))));
-
         for (LivingEntity entity : getConeTargets(caster, angleDegrees, maxDistance)) {
             Vector toTarget = entity.getEyeLocation().toVector().subtract(eye.toVector());
             double distance = toTarget.length();
-            double dot = toTarget.normalize().dot(forward);
-            if (dot < cosLimit) {
+            if (distance < 1.0e-6) {
                 continue;
             }
-            // score: prefer center-of-view and closer
+            double dot = toTarget.normalize().dot(forward);
             double score = dot * 2.0 - (distance / Math.max(1.0, maxDistance));
             if (score > bestScore) {
                 bestScore = score;
@@ -181,53 +181,52 @@ public final class AimUtils {
         return best;
     }
 
-    /**
-     * Nearest living entity within radius.
-     */
+    /** 半径内最近的生物（包围盒预筛，不做全图扫描）。 */
     public static LivingEntity getNearest(LivingEntity origin, double radius) {
         return getNearest(origin, radius, e -> true);
     }
 
     public static LivingEntity getNearest(LivingEntity origin, double radius, Predicate<LivingEntity> filter) {
-        if (origin == null) {
+        if (origin == null || origin.getWorld() == null || !goodRange(radius)) {
             return null;
         }
         LivingEntity nearest = null;
         double nearestDist = radius * radius;
-        for (LivingEntity entity : origin.getWorld().getLivingEntities()) {
-            if (entity.equals(origin) || !DamageUtils.isAlive(entity)) {
+        Location center = origin.getLocation();
+        for (Entity entity : origin.getNearbyEntities(radius, radius, radius)) {
+            if (!(entity instanceof LivingEntity living) || living.equals(origin) || !DamageUtils.isAlive(living)) {
                 continue;
             }
-            if (filter != null && !filter.test(entity)) {
+            if (filter != null && !filter.test(living)) {
                 continue;
             }
-            double distSq = entity.getLocation().distanceSquared(origin.getLocation());
+            double distSq = living.getLocation().distanceSquared(center);
             if (distSq <= nearestDist) {
                 nearestDist = distSq;
-                nearest = entity;
+                nearest = living;
             }
         }
         return nearest;
     }
 
-    /**
-     * All living entities within radius of a location.
-     */
+    /** 半径内全部生物。 */
     public static List<LivingEntity> getNearby(LivingEntity origin, double radius) {
         return getNearby(origin, radius, e -> true);
     }
 
     public static List<LivingEntity> getNearby(LivingEntity origin, double radius, Predicate<LivingEntity> filter) {
         List<LivingEntity> list = new ArrayList<>();
-        if (origin == null || radius <= 0) {
+        if (origin == null || origin.getWorld() == null || !goodRange(radius)) {
             return list;
         }
+        Location center = origin.getLocation();
+        double radiusSq = radius * radius;
         Collection<Entity> nearby = origin.getNearbyEntities(radius, radius, radius);
         for (Entity entity : nearby) {
             if (entity instanceof LivingEntity living
                     && DamageUtils.isAlive(living)
                     && (filter == null || filter.test(living))) {
-                if (living.getLocation().distanceSquared(origin.getLocation()) <= radius * radius) {
+                if (living.getLocation().distanceSquared(center) <= radiusSq) {
                     list.add(living);
                 }
             }
@@ -236,12 +235,10 @@ public final class AimUtils {
     }
 
     // ------------------------------------------------------------------
-    // Line of sight
+    // 视线
     // ------------------------------------------------------------------
 
-    /**
-     * Whether caster has clear line of sight to target.
-     */
+    /** 施法者到目标是否有视线。 */
     public static boolean hasLineOfSight(LivingEntity caster, LivingEntity target) {
         return caster != null && target != null && caster.hasLineOfSight(target);
     }
@@ -251,31 +248,34 @@ public final class AimUtils {
     }
 
     // ------------------------------------------------------------------
-    // Prediction / lead aim (projectile)
+    // 预判 / 弹道
     // ------------------------------------------------------------------
 
     /**
-     * Predict where a moving target will be after {@code seconds}.
-     * Simple linear velocity prediction.
+     * 按当前速度线性预判目标在 {@code seconds} 秒后的位置。
      */
     public static Location predictLocation(LivingEntity target, double seconds) {
         if (target == null) {
             return null;
         }
         Location loc = target.getLocation();
-        Vector velocity = target.getVelocity();
-        return loc.add(velocity.clone().multiply(seconds * 20.0 * 0.05 * 20)); // velocity is blocks/tick
+        if (!Double.isFinite(seconds) || seconds <= 0) {
+            return loc;
+        }
+        // 速度单位是 格/tick，seconds 秒 = seconds*20 tick
+        return loc.add(target.getVelocity().multiply(seconds * 20.0));
     }
 
     /**
-     * Compute launch velocity for a projectile to hit a moving target.
-     * Uses simple linear prediction + gravity compensation.
+     * 计算命中移动目标所需的发射速度（线性预判 + 重力补偿）。
      *
-     * @param projectileSpeed desired horizontal speed (blocks/tick)
-     * @return launch vector, or null if target invalid
+     * @param projectileSpeed 期望弹速（格/tick）
+     * @return 发射向量；目标无效或跨世界时返回 null
      */
-    public static Vector computeLeadVelocity(LivingEntity shooter, LivingEntity target, double projectileSpeed, double gravityCompensation) {
-        if (shooter == null || target == null || projectileSpeed <= 0) {
+    public static Vector computeLeadVelocity(LivingEntity shooter, LivingEntity target,
+                                             double projectileSpeed, double gravityCompensation) {
+        if (shooter == null || target == null || !goodRange(projectileSpeed)
+                || shooter.getWorld() == null || !shooter.getWorld().equals(target.getWorld())) {
             return null;
         }
         Location from = shooter.getEyeLocation();
@@ -283,24 +283,22 @@ public final class AimUtils {
         double distance = from.distance(to);
         double travelTicks = distance / projectileSpeed;
 
-        Vector targetVel = target.getVelocity();
-        Location predicted = to.clone().add(targetVel.multiply(travelTicks * 0.05 * 20.0 / 20.0 * 20)); // blocks/tick * ticks
-        // simpler: velocity is blocks/tick, travel time in ticks = distance/speed
-        predicted = to.clone().add(targetVel.clone().multiply(travelTicks));
+        // 目标速度（格/tick）× 飞行 tick 数 = 预判位移
+        Location predicted = to.clone().add(target.getVelocity().multiply(travelTicks));
 
         Vector dir = predicted.toVector().subtract(from.toVector());
-        dir.setY(dir.getY() + gravityCompensation * travelTicks * 0.5);
         if (dir.lengthSquared() < 1.0e-6) {
             return null;
         }
+        double compensation = Double.isFinite(gravityCompensation) ? gravityCompensation : 0.0;
+        dir.setY(dir.getY() + compensation * travelTicks * 0.5);
         return dir.normalize().multiply(projectileSpeed);
     }
 
-    /**
-     * Face location smoothly (set yaw/pitch toward target).
-     */
+    /** 把实体转向目标位置（只改 yaw/pitch）。 */
     public static void faceLocation(LivingEntity entity, Location target) {
-        if (entity == null || target == null) {
+        if (entity == null || target == null || target.getWorld() == null
+                || !target.getWorld().equals(entity.getWorld())) {
             return;
         }
         Location loc = entity.getLocation();
@@ -310,22 +308,25 @@ public final class AimUtils {
         }
         dir = dir.normalize();
         float yaw = (float) Math.toDegrees(Math.atan2(-dir.getX(), dir.getZ()));
-        float pitch = (float) Math.toDegrees(-Math.asin(dir.getY()));
+        float pitch = (float) Math.toDegrees(-Math.asin(Math.max(-1.0, Math.min(1.0, dir.getY()))));
         loc.setYaw(yaw);
         loc.setPitch(pitch);
         entity.teleport(loc);
     }
 
     // ------------------------------------------------------------------
-    // Lock-on
+    // 辅助瞄准
     // ------------------------------------------------------------------
 
     /**
-     * Soft aim assist: if player is looking near an entity, snap return to it.
+     * 软辅助瞄准：准星附近有目标时返回该目标。
      *
-     * @param assistAngle max angle off-center to assist
+     * @param assistAngle 允许偏离准星的最大角度
      */
     public static LivingEntity aimAssist(Player player, double maxDistance, double assistAngle) {
+        if (player == null) {
+            return null;
+        }
         LivingEntity direct = raycastEntity(player, maxDistance);
         if (direct != null) {
             return direct;
@@ -333,26 +334,26 @@ public final class AimUtils {
         return getBestConeTarget(player, assistAngle, maxDistance);
     }
 
-    /**
-     * Whether target is within the aim cone of caster.
-     */
+    /** 目标是否在施法者的锥形内。 */
     public static boolean isInCone(LivingEntity caster, LivingEntity target, double angleDegrees) {
         if (caster == null || target == null) {
             return false;
         }
         Location eye = caster.getEyeLocation();
-        Vector forward = eye.getDirection().normalize();
+        Vector forward = eye.getDirection();
+        if (forward.lengthSquared() < 1.0e-8) {
+            return false;
+        }
+        forward.normalize();
         Vector toTarget = target.getEyeLocation().toVector().subtract(eye.toVector());
         if (toTarget.lengthSquared() < 1.0e-6) {
             return true;
         }
-        double dot = toTarget.normalize().dot(forward);
-        return dot >= Math.cos(Math.toRadians(Math.max(0.1, Math.min(180.0, angleDegrees))));
+        double angle = Double.isFinite(angleDegrees) ? Math.max(0.1, Math.min(180.0, angleDegrees)) : 45.0;
+        return toTarget.normalize().dot(forward) >= Math.cos(Math.toRadians(angle));
     }
 
-    /**
-     * Spawn a small aim marker particle at a location (for lock-on visuals).
-     */
+    /** 在位置生成一个小型瞄准标记粒子。 */
     public static void showAimMarker(Location location) {
         if (location == null || location.getWorld() == null) {
             return;
@@ -361,21 +362,20 @@ public final class AimUtils {
         world.spawnParticle(Particle.CRIT, location, 8, 0.1, 0.1, 0.1, 0.02);
     }
 
-    /**
-     * Distance between entity eye locations.
-     */
+    /** 两个实体眼睛之间的距离（跨世界返回 {@link Double#MAX_VALUE}）。 */
     public static double eyeDistance(LivingEntity a, LivingEntity b) {
-        if (a == null || b == null) {
+        if (a == null || b == null || a.getWorld() == null || !a.getWorld().equals(b.getWorld())) {
             return Double.MAX_VALUE;
         }
         return a.getEyeLocation().distance(b.getEyeLocation());
     }
 
-    /**
-     * Bounding-box based precise raycast hit test.
-     */
+    /** 基于碰撞箱的精确射线命中检测。 */
     public static boolean rayHitsEntity(Location from, Vector direction, LivingEntity entity, double maxDistance) {
-        if (from == null || direction == null || entity == null) {
+        if (from == null || direction == null || entity == null || !goodRange(maxDistance)) {
+            return false;
+        }
+        if (direction.lengthSquared() < 1.0e-8) {
             return false;
         }
         BoundingBox box = entity.getBoundingBox().expand(0.1);

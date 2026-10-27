@@ -43,6 +43,8 @@ public final class VulcanHelper {
     /** 位移期间每 tick 调用：清零该玩家所有移动类检测的 VL。 */
     public static void clearMovementViolations(Player player) {
         if (player == null) return;
+        // 未安装 Vulcan 时直接返回，不进入反射逻辑（每 tick 调用的热路径）
+        if (vulcanApi == null && tried) return;
         if (!tried) {
             tryConnect();
             tried = true;
@@ -57,6 +59,15 @@ public final class VulcanHelper {
                 }
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 位移前调用：热重载后 Vulcan 对象可能已失效，这里尝试重新连接一次。
+     */
+    public static void refreshIfNeeded() {
+        if (Bukkit.getPluginManager().getPlugin("Vulcan") == null) {
+            reset();
         }
     }
 

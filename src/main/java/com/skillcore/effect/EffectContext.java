@@ -25,11 +25,24 @@ public final class EffectContext {
     private EffectContext(Location location, Vector direction, LivingEntity caster,
                           LivingEntity target, double power, float scale) {
         this.location = location == null ? null : location.clone();
-        this.direction = direction == null ? new Vector(0, 1, 0) : direction.clone().normalize();
+        this.direction = sanitizeDirection(direction);
         this.caster = caster;
         this.target = target;
-        this.power = power;
-        this.scale = scale;
+        // NaN / 无穷会让后续缩放算出无效偏移，统一回退 1.0
+        this.power = Double.isFinite(power) ? power : 1.0;
+        this.scale = Float.isFinite(scale) && scale > 0 ? scale : 1.0f;
+    }
+
+    /** 方向向量归一化；null/零向量/NaN 都回退为 +Y，避免特效用无效向量。 */
+    private static Vector sanitizeDirection(Vector direction) {
+        if (direction == null
+                || !Double.isFinite(direction.getX())
+                || !Double.isFinite(direction.getY())
+                || !Double.isFinite(direction.getZ())
+                || direction.lengthSquared() < 1.0e-9) {
+            return new Vector(0, 1, 0);
+        }
+        return direction.clone().normalize();
     }
 
     public static EffectContext of(Location location) {

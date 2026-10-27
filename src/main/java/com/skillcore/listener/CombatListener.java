@@ -44,27 +44,29 @@ public final class CombatListener implements Listener {
     // ------------------------------------------------------------------
 
     public void setLifesteal(Player player, double percent) {
-        if (percent <= 0) {
+        if (player == null) return;
+        if (!Double.isFinite(percent) || percent <= 0) {
             lifestealPercent.remove(player.getUniqueId());
         } else {
-            lifestealPercent.put(player.getUniqueId(), percent);
+            lifestealPercent.put(player.getUniqueId(), Math.min(percent, 1.0));
         }
     }
 
     public double getLifesteal(Player player) {
-        return lifestealPercent.getOrDefault(player.getUniqueId(), 0.0);
+        return player == null ? 0.0 : lifestealPercent.getOrDefault(player.getUniqueId(), 0.0);
     }
 
     public void setReflect(Player player, double percent) {
-        if (percent <= 0) {
+        if (player == null) return;
+        if (!Double.isFinite(percent) || percent <= 0) {
             reflectPercent.remove(player.getUniqueId());
         } else {
-            reflectPercent.put(player.getUniqueId(), percent);
+            reflectPercent.put(player.getUniqueId(), Math.min(percent, 1.0));
         }
     }
 
     public double getReflect(Player player) {
-        return reflectPercent.getOrDefault(player.getUniqueId(), 0.0);
+        return player == null ? 0.0 : reflectPercent.getOrDefault(player.getUniqueId(), 0.0);
     }
 
     // ------------------------------------------------------------------
@@ -75,21 +77,25 @@ public final class CombatListener implements Listener {
     public void onDamage(EntityDamageByEntityEvent event) {
         LivingEntity damager = DamageUtils.getDamager(event);
         LivingEntity victim = DamageUtils.getVictim(event);
-        if (damager == null || victim == null) {
+        if (damager == null || victim == null || damager.equals(victim)) {
             return;
         }
 
         // --- 盔甲套装被动：穿戴整套者增伤 / 减伤（先于最终伤害计算） ---
         com.skillcore.armor.ArmorManager armorManager = plugin.getArmorManager();
+        com.skillcore.armor.ArmorStats attackerArmor = null;
+        com.skillcore.armor.ArmorStats defenderArmor = null;
         if (armorManager != null) {
             if (damager instanceof Player attacker) {
-                double mult = armorManager.getActive(attacker).damageMultiplier();
+                attackerArmor = armorManager.getActive(attacker);
+                double mult = attackerArmor.damageMultiplier();
                 if (mult > 0 && Math.abs(mult - 1.0) > 1.0e-9) {
                     event.setDamage(event.getDamage() * mult);
                 }
             }
             if (victim instanceof Player defender) {
-                double reduction = armorManager.getActive(defender).damageReduction();
+                defenderArmor = armorManager.getActive(defender);
+                double reduction = defenderArmor.damageReduction();
                 if (reduction > 0) {
                     event.setDamage(event.getDamage() * (1.0 - Math.min(reduction, 1.0)));
                 }
@@ -98,17 +104,24 @@ public final class CombatListener implements Listener {
 
         double finalDamage = event.getFinalDamage();
 
+        // --- 受击钩子：受击方是玩家就触发（攻击者可以是玩家 / 怪物 / 投射物） ---
+        // 反伤类技能依赖这条路径，必须放在“攻击者是玩家”的判断之外，
+        // 否则被怪物攻击时永远不会触发。
+        if (plugin.getWeaponManager() != null && victim instanceof Player victimPlayer) {
+            plugin.getWeaponManager().notifyDamaged(victimPlayer, damager, finalDamage);
+        }
+
         // --- lifesteal ---
         if (damager instanceof Player player) {
             double percent = getLifesteal(player);
-            // 叠加盔甲套装吸血
-            if (armorManager != null) {
-                percent = Math.max(percent, armorManager.getActive(player).lifesteal());
+            // 叠加盔甲套装吸血（取较大值，避免与技能自带吸血重复叠加）
+            if (attackerArmor != null) {
+                percent = Math.max(percent, attackerArmor.lifesteal());
             }
             if (percent > 0) {
                 double healed = LifestealUtils.healByDamagePercent(player, finalDamage, percent);
                 if (healed > 0 && plugin.getConfigManager().getConfig().getBoolean("logging.log-damage-calc", false)) {
-                    plugin.getLogger().info(String.format(
+                    plugin.getLogger().info(String.format(java.util.Locale.ROOT,
                             "Lifesteal %s -> %s damage=%.2f healed=%.2f",
                             player.getName(), victim.getName(), finalDamage, healed));
                 }
@@ -118,10 +131,6 @@ public final class CombatListener implements Listener {
                     && !com.skillcore.utils.SkillDamageUtils.isSkillDamage(victim)) {
                 plugin.getWeaponManager().notifyHit(player, victim, finalDamage);
             }
-            // 武器受击钩子（反伤类）：受击方若是玩家且持技能武器
-            if (plugin.getWeaponManager() != null && victim instanceof Player victimPlayer) {
-                plugin.getWeaponManager().notifyDamaged(victimPlayer, damager, finalDamage);
-            }
         }
 
         // --- reflect / thorns ---
@@ -130,10 +139,9 @@ public final class CombatListener implements Listener {
         if (victim instanceof Player player) {
             reflectPercentValue = getReflect(player);
             // 叠加盔甲套装反伤
-            if (armorManager != null) {
-                var armor = armorManager.getActive(player);
-                reflectPercentValue = Math.max(reflectPercentValue, armor.reflectPercent());
-                reflectFlat = Math.max(reflectFlat, armor.reflectFlat());
+            if (defenderArmor != null) {
+                reflectPercentValue = Math.max(reflectPercentValue, defenderArmor.reflectPercent());
+                reflectFlat = Math.max(reflectFlat, defenderArmor.reflectFlat());
             }
         }
         ReflectDamageUtils.ReflectBuff buff = ReflectDamageUtils.getReflectBuff(victim);
@@ -162,7 +170,7 @@ public final class CombatListener implements Listener {
         if (victim == null) {
             return;
         }
-        plugin.getLogger().info(String.format(
+        plugin.getLogger().info(String.format(java.util.Locale.ROOT,
                 "Damage %s cause=%s raw=%.2f final=%.2f",
                 victim.getName(), event.getCause(),
                 event.getDamage(), event.getFinalDamage()));
@@ -187,11 +195,9 @@ public final class CombatListener implements Listener {
     /** 击杀钩子：通知击杀者手持武器的 onKill。 */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        if (!(event.getEntity() instanceof LivingEntity victim) || plugin.getWeaponManager() == null) {
-            return;
-        }
+        LivingEntity victim = event.getEntity();
         Player killer = victim.getKiller();
-        if (killer == null) {
+        if (killer == null || plugin.getWeaponManager() == null) {
             return;
         }
         plugin.getWeaponManager().notifyKill(killer, victim);

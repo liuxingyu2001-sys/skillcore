@@ -13,7 +13,7 @@ custom-model-data: 0
 lore:
   - "&7右键: 向前突刺并斩击"
   - "&7左键: 普通强击"
-  - "&8冷却: {cooldown}s"
+  - "&8冷却: 右 {cooldown-right}s &7/ 左 {cooldown-left}s"
   - "&c伤害: {damage}  &a吸血: {lifesteal}%"
   - "&7暴击: {crit}% x{crit-multi}  穿透: {pen}%"
 stats:
@@ -23,8 +23,10 @@ stats:
   critical-multiplier: 1.8
   armor-penetration: 0.15
   lifesteal: 0.15
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
   cooldown: 5.0
+  # 左键只是普通强击，冷却更短
+  cooldown-left: 2.0
   dash-speed: 1.8
   dash-distance: 5.0
   dash-y: 0.12

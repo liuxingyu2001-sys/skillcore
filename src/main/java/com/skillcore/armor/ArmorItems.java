@@ -65,12 +65,16 @@ public final class ArmorItems {
             meta.setUnbreakable(true);
         }
         applyEnchantments(meta, piece);
-        item.setItemMeta(meta);
-
+        // PDC 与外观一次写入，避免创建时再克隆一次 ItemMeta
         Plugin plugin = com.skillcore.SkillCorePlugin.getInstance();
         if (plugin != null) {
-            mark(plugin, item, set.id(), piece.slot().key());
+            var pdc = meta.getPersistentDataContainer();
+            pdc.set(new NamespacedKey(plugin, KEY_ARMOR_SET), PersistentDataType.STRING, set.id());
+            if (piece.slot() != null) {
+                pdc.set(new NamespacedKey(plugin, KEY_ARMOR_SLOT), PersistentDataType.STRING, piece.slot().key());
+            }
         }
+        item.setItemMeta(meta);
         return item;
     }
 
@@ -106,6 +110,15 @@ public final class ArmorItems {
 
     /** 读取套装 id。 */
     public static String getSetId(Plugin plugin, ItemStack item) {
+        return readKey(plugin, item, KEY_ARMOR_SET);
+    }
+
+    /** 读取部位 key（helmet/chestplate/leggings/boots）。 */
+    public static String getSlot(Plugin plugin, ItemStack item) {
+        return readKey(plugin, item, KEY_ARMOR_SLOT);
+    }
+
+    private static String readKey(Plugin plugin, ItemStack item, String key) {
         if (plugin == null || item == null || item.getType() == Material.AIR) {
             return null;
         }
@@ -118,23 +131,7 @@ public final class ArmorItems {
             return null;
         }
         return meta.getPersistentDataContainer().get(
-                new NamespacedKey(plugin, KEY_ARMOR_SET), PersistentDataType.STRING);
-    }
-
-    /** 读取部位 key（helmet/chestplate/leggings/boots）。 */
-    public static String getSlot(Plugin plugin, ItemStack item) {
-        if (plugin == null || item == null || item.getType() == Material.AIR) {
-            return null;
-        }
-        if (!item.hasItemMeta()) {
-            return null;
-        }
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return null;
-        }
-        return meta.getPersistentDataContainer().get(
-                new NamespacedKey(plugin, KEY_ARMOR_SLOT), PersistentDataType.STRING);
+                new NamespacedKey(plugin, key), PersistentDataType.STRING);
     }
 
     /** 是否技能盔甲部件（带套装 id PDC）。 */

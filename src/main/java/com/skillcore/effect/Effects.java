@@ -221,10 +221,17 @@ public final class Effects {
                                             int points, long durationTicks) {
         return context -> {
             if (!context.valid()) return;
-            long steps = Math.max(1, durationTicks);
+            // durationTicks 直接决定创建多少个延迟任务，必须封顶，避免配置写错刷爆调度器
+            int steps = (int) Math.max(1, Math.min(durationTicks, 200));
+            double startR = Double.isFinite(fromRadius) ? fromRadius : 0.0;
+            double endR = Double.isFinite(toRadius) ? toRadius : startR;
+            // 先算好每帧半径，避免在 lambda 里引用循环变量麻烦；半径在播放时已经确定
+            double[] radii = new double[steps + 1];
             for (int i = 0; i <= steps; i++) {
-                double r = fromRadius + (toRadius - fromRadius) * (i / (double) steps);
-                final double radius = r;
+                radii[i] = startR + (endR - startR) * (i / (double) steps);
+            }
+            for (int i = 0; i <= steps; i++) {
+                final double radius = radii[i];
                 SkillEffect ring = ctx -> ParticleUtils.ring(ctx.location(), radius, particle, points, new Vector(0, 1, 0));
                 Effects.delayed(ring, i).play(context);
             }
@@ -235,12 +242,16 @@ public final class Effects {
     public static SkillEffect groundCracks(double radius, int cracks, Particle particle, double jaggedness) {
         return context -> {
             if (!context.valid()) return;
-            for (int i = 0; i < cracks; i++) {
-                double angle = 2 * Math.PI * i / Math.max(1, cracks);
+            // 每条裂纹一次折线绘制，数量封顶防止配置异常拖垮主线程
+            int count = Math.max(0, Math.min(cracks, 64));
+            double rad = Double.isFinite(radius) ? radius : 0.0;
+            double jag = Double.isFinite(jaggedness) ? jaggedness : 0.0;
+            for (int i = 0; i < count; i++) {
+                double angle = 2 * Math.PI * i / Math.max(1, count);
                 Location start = context.location().clone().add(0, 0.12, 0);
                 Location end = start.clone().add(
-                        Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-                ParticleUtils.bolt(start, end, particle, jaggedness, 6);
+                        Math.cos(angle) * rad, 0, Math.sin(angle) * rad);
+                ParticleUtils.bolt(start, end, particle, jag, 6);
             }
         };
     }
@@ -250,12 +261,16 @@ public final class Effects {
                                     double turns, int points, long durationTicks) {
         return context -> {
             if (!context.valid()) return;
-            long steps = Math.max(1, durationTicks);
+            // 每帧一个延迟任务，同样需要封顶
+            int steps = (int) Math.max(1, Math.min(durationTicks, 200));
+            double r = Double.isFinite(radius) ? radius : 0.0;
+            double h = Double.isFinite(height) ? height : 0.0;
+            double t2 = Double.isFinite(turns) ? turns : 1.0;
             for (int i = 0; i <= steps; i++) {
                 double t = i / (double) steps;
-                double angle = t * turns * 2 * Math.PI;
+                double angle = t * t2 * 2 * Math.PI;
                 Location p = context.location().clone().add(
-                        Math.cos(angle) * radius, height * t, Math.sin(angle) * radius);
+                        Math.cos(angle) * r, h * t, Math.sin(angle) * r);
                 final Location point = p;
                 SkillEffect dot = ctx -> ParticleUtils.spawn(point, particle, 1);
                 Effects.delayed(dot, i).play(context);
@@ -273,11 +288,14 @@ public final class Effects {
             if (!context.valid()) return;
             Location center = context.location();
             World world = context.world();
-            int r = (int) Math.ceil(Math.max(0, radius));
+            // 半径封顶 8：每个方块都要读一次最高方块，过大会卡主线程
+            double rad = Double.isFinite(radius) ? Math.max(0, Math.min(radius, 8.0)) : 0.0;
+            if (rad <= 0) return;
+            int r = (int) Math.ceil(rad);
             List<Block> blocks = new ArrayList<>();
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    if (dx * dx + dz * dz > radius * radius + 1) continue;
+                    if (dx * dx + dz * dz > rad * rad + 1) continue;
                     Block b = world.getHighestBlockAt(center.getBlockX() + dx, center.getBlockZ() + dz);
                     int guard = 0;
                     while (b != null && !b.getType().isSolid() && guard++ < 5

@@ -24,8 +24,11 @@ public final class EffectSettings {
         if (config == null) return;
         effectsEnabled = config.getBoolean("effects.enabled", true);
         particlesEnabled = config.getBoolean("effects.particles", true);
-        density = Math.max(0.0, config.getDouble("effects.density", 1.0));
-        fallbackParticle = config.getString("effects.fallback-particle", "ENCHANT");
+        double rawDensity = config.getDouble("effects.density", 1.0);
+        // NaN / 负数会让粒子数量算出异常值，统一收敛到 0~10
+        density = Double.isFinite(rawDensity) ? Math.max(0.0, Math.min(rawDensity, 10.0)) : 1.0;
+        String rawFallback = config.getString("effects.fallback-particle", "ENCHANT");
+        fallbackParticle = rawFallback == null || rawFallback.isBlank() ? "ENCHANT" : rawFallback.trim();
         teleportDuration = clamp(config.getInt("effects.display.teleport-duration", 3), 0, 59);
         interpolationDuration = clamp(config.getInt("effects.display.interpolation-duration", 2), 0, 59);
     }
@@ -57,8 +60,9 @@ public final class EffectSettings {
 
     /** 按密度缩放粒子数量（至少 1，density<=0 返回 0）。 */
     public static int scaleCount(int count) {
-        if (density <= 0) return 0;
-        return Math.max(1, (int) Math.round(count * density));
+        if (density <= 0 || count <= 0) return 0;
+        long scaled = Math.round(count * density);
+        return (int) Math.max(1, Math.min(scaled, 4096));
     }
 
     private static int clamp(int value, int min, int max) {

@@ -31,6 +31,8 @@ public final class WeaponStats {
     private double lifestealOverhealCap = 0.0;
     private double reflectPercent = 0.0;
     private double reflectFlat = 0.0;
+    /** 反伤 buff 持续时长（tick，右键开启反伤类技能用；0 = 无持续状态）。 */
+    private int reflectDurationTicks = 200;
 
     // ---- 冷却 / 消耗 ----
     private double cooldown = 1.0;
@@ -118,6 +120,7 @@ public final class WeaponStats {
     public WeaponStats reflect(double percent, double flat) {
         this.reflectPercent = percent; this.reflectFlat = flat; return this;
     }
+    public WeaponStats reflectDuration(int ticks) { this.reflectDurationTicks = ticks; return this; }
 
     public WeaponStats cooldown(double v) { this.cooldown = v; return this; }
     public WeaponStats cooldownLeft(double v) { this.cooldownLeft = v; return this; }
@@ -182,6 +185,7 @@ public final class WeaponStats {
     public double lifestealOverhealCap() { return lifestealOverhealCap; }
     public double reflectPercent() { return reflectPercent; }
     public double reflectFlat() { return reflectFlat; }
+    public int reflectDurationTicks() { return reflectDurationTicks; }
 
     public double cooldown() { return cooldown; }
     /** 左键技能冷却；未单独配置时回退 {@link #cooldown()}。 */
@@ -261,20 +265,23 @@ public final class WeaponStats {
                 armorPenetration, target);
     }
 
-    /** 额外百分比伤害。 */
+    /** 额外百分比伤害（受 {@code percent-damage-cap} 上限约束）。 */
     public double calculatePercentBonus(LivingEntity target) {
-        return com.skillcore.utils.PercentageDamageUtils.combine(
+        double bonus = com.skillcore.utils.PercentageDamageUtils.combine(
                 target, 0, percentMaxHealth, percentMissingHealth)
                 + com.skillcore.utils.PercentageDamageUtils.ofCurrentHealth(target, percentCurrentHealth);
+        if (!Double.isFinite(bonus)) {
+            return 0.0;
+        }
+        if (percentDamageCap > 0) {
+            bonus = Math.min(bonus, percentDamageCap);
+        }
+        return Math.max(0.0, bonus);
     }
 
-    /** 一次完整攻击总伤 = 物理 + 百分比。 */
+    /** 一次完整攻击总伤 = 物理 + 百分比（百分比部分已在 calculatePercentBonus 内限幅）。 */
     public double calculateTotal(LivingEntity target, double power) {
-        double total = calculateHit(target, power) + calculatePercentBonus(target);
-        if (percentDamageCap > 0) {
-            total = Math.min(total, percentDamageCap);
-        }
-        return total;
+        return calculateHit(target, power) + calculatePercentBonus(target);
     }
 
     // ------------------------------------------------------------------
@@ -302,6 +309,7 @@ public final class WeaponStats {
         stats.lifestealOverhealCap = section.getDouble("lifesteal-overheal-cap", stats.lifestealOverhealCap);
         stats.reflectPercent = section.getDouble("reflect-percent", stats.reflectPercent);
         stats.reflectFlat = section.getDouble("reflect-flat", stats.reflectFlat);
+        stats.reflectDurationTicks = section.getInt("reflect-duration-ticks", stats.reflectDurationTicks);
 
         stats.cooldown = section.getDouble("cooldown", stats.cooldown);
         stats.cooldownLeft = section.getDouble("cooldown-left", -1.0);
@@ -357,7 +365,99 @@ public final class WeaponStats {
                 stats.custom.put(key, custom.get(key));
             }
         }
+        stats.sanitize();
         return stats;
+    }
+
+    /**
+     * 修正配置里的非法值（NaN / Infinity / 负数 / 超范围）。
+     * <p>
+     * 手写 yml 很容易出现 {@code cooldown: -1}、{@code damage: NaN} 这类值，
+     * 直接参与运算会导致伤害 NaN、速度设置抛异常，这里统一收敛到安全范围。
+     */
+    private void sanitize() {
+        damage = nonNegative(damage, 0.0);
+        damageScaling = nonNegative(damageScaling, 1.0);
+        criticalChance = clamp(criticalChance, 0.0, 1.0);
+        criticalMultiplier = Math.max(1.0, finite(criticalMultiplier, 1.5));
+        armorPenetration = clamp(armorPenetration, 0.0, 1.0);
+        attackSpeed = clamp(attackSpeed, 0.1, 10.0);
+
+        percentMaxHealth = clamp(percentMaxHealth, 0.0, 1.0);
+        percentCurrentHealth = clamp(percentCurrentHealth, 0.0, 1.0);
+        percentMissingHealth = clamp(percentMissingHealth, 0.0, 1.0);
+        percentDamageCap = nonNegative(percentDamageCap, 0.0);
+
+        lifesteal = clamp(lifesteal, 0.0, 1.0);
+        lifestealOverhealCap = nonNegative(lifestealOverhealCap, 0.0);
+        reflectPercent = clamp(reflectPercent, 0.0, 1.0);
+        reflectFlat = nonNegative(reflectFlat, 0.0);
+        reflectDurationTicks = clamp(reflectDurationTicks, 0, 20 * 60 * 10);
+
+        cooldown = nonNegative(cooldown, 0.0);
+        // -1 表示「未单独配置，回退 cooldown」，保留；其他负数按 0 处理
+        cooldownLeft = cooldownLeft < 0 ? -1.0 : nonNegative(cooldownLeft, 0.0);
+        cooldownRight = cooldownRight < 0 ? -1.0 : nonNegative(cooldownRight, 0.0);
+        manaCost = nonNegative(manaCost, 0.0);
+        staminaCost = nonNegative(staminaCost, 0.0);
+        onHitIntervalSeconds = nonNegative(onHitIntervalSeconds, 0.0);
+
+        dashSpeed = clamp(dashSpeed, 0.0, 10.0);
+        dashDistance = nonNegative(dashDistance, 0.0);
+        dashY = clamp(dashY, -5.0, 5.0);
+        blinkDistance = clamp(blinkDistance, 0.0, 64.0);
+        knockbackStrength = clamp(knockbackStrength, 0.0, 10.0);
+        pullStrength = clamp(pullStrength, 0.0, 10.0);
+
+        hopVelocity = clamp(hopVelocity, -5.0, 5.0);
+        hopForward = clamp(hopForward, -5.0, 5.0);
+        slamLaunchVelocity = clamp(slamLaunchVelocity, -5.0, 5.0);
+        slamApexTicks = clamp(slamApexTicks, 1, 200);
+        slamDownVelocity = clamp(slamDownVelocity, -5.0, 5.0);
+        slamTimeoutTicks = clamp(slamTimeoutTicks, 20, 1200);
+        slamUppercutVelocity = clamp(slamUppercutVelocity, -5.0, 5.0);
+        slamSelfBounce = clamp(slamSelfBounce, -5.0, 5.0);
+
+        range = clamp(range, 0.0, 64.0);
+        aimRange = clamp(aimRange, 0.0, 64.0);
+        aimAngle = clamp(aimAngle, 0.0, 180.0);
+        aoeRadius = clamp(aoeRadius, 0.0, 32.0);
+        aoeDamageRatio = clamp(aoeDamageRatio, 0.0, 1.0);
+
+        slowDurationTicks = clamp(slowDurationTicks, 0, 20 * 60 * 10);
+        slowAmplifier = clamp(slowAmplifier, 0, 255);
+        stunDurationTicks = clamp(stunDurationTicks, 0, 20 * 60 * 10);
+        rootDurationTicks = clamp(rootDurationTicks, 0, 20 * 60 * 10);
+
+        damageReduction = clamp(damageReduction, 0.0, 1.0);
+        shieldAmount = nonNegative(shieldAmount, 0.0);
+        healAmount = nonNegative(healAmount, 0.0);
+        healPercentOfMax = clamp(healPercentOfMax, 0.0, 1.0);
+
+        hitCount = clamp(hitCount, 1, 20);
+        hitIntervalTicks = clamp(hitIntervalTicks, 0.0, 200.0);
+        maxTargets = clamp(maxTargets, 1, 50);
+
+        soundVolume = (float) clamp(soundVolume, 0.0, 10.0);
+        soundPitch = (float) clamp(soundPitch, 0.5, 2.0);
+    }
+
+    private static double finite(double value, double def) {
+        return Double.isFinite(value) ? value : def;
+    }
+
+    private static double nonNegative(double value, double def) {
+        double v = finite(value, def);
+        return Math.max(0.0, v);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        double v = finite(value, min);
+        return Math.max(min, Math.min(max, v));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     public WeaponStats copy() {
@@ -376,6 +476,7 @@ public final class WeaponStats {
         s.lifestealOverhealCap = lifestealOverhealCap;
         s.reflectPercent = reflectPercent;
         s.reflectFlat = reflectFlat;
+        s.reflectDurationTicks = reflectDurationTicks;
         s.cooldown = cooldown;
         s.cooldownLeft = cooldownLeft;
         s.cooldownRight = cooldownRight;

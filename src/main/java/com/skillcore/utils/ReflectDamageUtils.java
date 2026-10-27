@@ -71,12 +71,15 @@ public final class ReflectDamageUtils {
             return 0.0;
         }
         double reflectDamage = calculateReflect(incomingDamage, percent, flat);
-        if (reflectDamage <= 0) {
+        if (reflectDamage <= 0 || !Double.isFinite(reflectDamage)) {
             return 0.0;
         }
-        // never fully one-shot through reflect alone: cap at attacker's current HP-1 if player
+        // 反伤不能直接击杀玩家：最多把攻击者打到 1 点血，避免纯反伤秒杀
         if (attacker instanceof Player) {
-            reflectDamage = Math.min(reflectDamage, Math.max(0.1, attacker.getHealth() - 0.5));
+            reflectDamage = Math.min(reflectDamage, attacker.getHealth() - 1.0);
+            if (reflectDamage <= 0.01) {
+                return 0.0;
+            }
         }
         REFLECTING.set(true);
         try {
@@ -110,11 +113,18 @@ public final class ReflectDamageUtils {
      * @param durationTicks duration in ticks (20 = 1s)
      */
     public static void addReflectBuff(LivingEntity entity, double percent, double flat, long durationTicks) {
-        if (entity == null) {
+        if (entity == null || durationTicks <= 0) {
             return;
         }
-        long expire = System.currentTimeMillis() + (durationTicks * 50L);
-        BUFFS.put(entity.getUniqueId(), new ReflectBuff(percent, flat, expire, false));
+        double p = Double.isFinite(percent) ? Math.max(0.0, percent) : 0.0;
+        double f = Double.isFinite(flat) ? Math.max(0.0, flat) : 0.0;
+        if (p <= 0 && f <= 0) {
+            return;
+        }
+        // 上限 10 分钟，避免配置写错导致 buff 永不过期
+        long ticks = Math.min(durationTicks, 20L * 60L * 10L);
+        long expire = System.currentTimeMillis() + ticks * 50L;
+        BUFFS.put(entity.getUniqueId(), new ReflectBuff(p, f, expire, false));
     }
 
     public static void removeReflectBuff(LivingEntity entity) {

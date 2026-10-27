@@ -158,9 +158,15 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             return;
         }
         String weaponId = args[1];
+        var manager = plugin.getWeaponManager();
+        // 先校验武器是否存在，避免“刷新 0 件”这种误导性提示
+        if (plugin.getWeaponRegistry().get(weaponId) == null) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c未找到武器: &e" + weaponId);
+            return;
+        }
 
         if (args.length >= 3 && args[2].equalsIgnoreCase("all")) {
-            int n = plugin.getWeaponManager().refreshLoreAllPlayers(weaponId);
+            int n = manager.refreshLoreAllPlayers(weaponId);
             MessageUtils.sendPrefixed(sender, prefix, "&a已刷新全服 &f" + n + " &a件 &e" + weaponId + " &a的 lore.");
             return;
         }
@@ -172,7 +178,7 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             MessageUtils.sendPrefixed(sender, prefix, "&c目标玩家不在线.");
             return;
         }
-        int n = plugin.getWeaponManager().refreshLore(target, weaponId);
+        int n = manager.refreshLore(target, weaponId);
         MessageUtils.sendPrefixed(sender, prefix,
                 "&a已刷新 &f" + target.getName() + " &a背包内 &f" + n + " &a件 &e" + weaponId + " &a的 lore.");
     }
@@ -200,7 +206,10 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             MessageUtils.sendPrefixed(sender, prefix, "&c秒数无效: &e" + args[2]);
             return;
         }
-        if (seconds < 0) seconds = 0;
+        if (!Double.isFinite(seconds) || seconds < 0) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c秒数必须是 >= 0 的数字.");
+            return;
+        }
         if (plugin.getWeaponRegistry().get(weaponId) == null
                 && plugin.getConfigManager().getSkillFile(weaponId) == null) {
             MessageUtils.sendPrefixed(sender, prefix, "&c未找到技能: &e" + weaponId);
@@ -211,21 +220,28 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         switch (side) {
             case "left" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
             case "right" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
+            case "all" -> {
+                // all：cooldown 作为回退，同时写左右两个键（逐个写，任一步失败才算失败）
+                ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown", seconds);
+                ok &= plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
+                ok &= plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
+            }
             default -> {
-                // all：cooldown 作为回退，同时写左右两个键
-                ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown", seconds)
-                        && plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds)
-                        && plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
+                MessageUtils.sendPrefixed(sender, prefix,
+                        "&c未知冷却类型: &e" + args[3] + " &7(可选 left|right|all)");
+                return;
             }
         }
         if (!ok) {
             MessageUtils.sendPrefixed(sender, prefix, "&c写入失败，请检查 skills/&e" + weaponId + ".yml");
             return;
         }
-        plugin.reloadAll();
+        // 只重载这一把武器：全量 reloadAll 会清掉所有技能状态并重建在线玩家的盔甲加成
+        boolean reloaded = plugin.getWeaponManager().reloadWeapon(weaponId);
         String sideText = side.equals("left") ? "左键" : side.equals("right") ? "右键" : "全部";
         MessageUtils.sendPrefixed(sender, prefix,
-                "&a已将 &e" + weaponId + " &a的" + sideText + "冷却设为 &f" + MathUtils.format1(seconds) + "s &7(已写回并重载)");
+                "&a已将 &e" + weaponId + " &a的" + sideText + "冷却设为 &f" + MathUtils.format1(seconds) + "s &7("
+                        + (reloaded ? "已写回并生效" : "已写回，重载生效") + ")");
     }
 
     /**
@@ -371,6 +387,12 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private boolean isCooldownSub(String sub) {
+        return sub != null && (sub.equalsIgnoreCase("cooldown")
+                || sub.equalsIgnoreCase("cd")
+                || sub.equalsIgnoreCase("setcooldown"));
+    }
+
     private double parseDouble(String raw, double def) {
         try {
             return Double.parseDouble(raw);
@@ -447,6 +469,14 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             if (args[0].equalsIgnoreCase("armor") && args[1].equalsIgnoreCase("give")) {
                 for (Player p : plugin.getServer().getOnlinePlayers()) {
                     result.add(p.getName());
+                }
+            } else if (isCooldownSub(args[0])) {
+                // /sc cooldown <weaponId> <秒> [left|right|all]
+                String input = args[3].toLowerCase(Locale.ROOT);
+                for (String side : List.of("left", "right", "all")) {
+                    if (side.startsWith(input)) {
+                        result.add(side);
+                    }
                 }
             }
         }

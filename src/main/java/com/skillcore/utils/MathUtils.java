@@ -103,6 +103,10 @@ public final class MathUtils {
         if (a == null || b == null) {
             return a != null ? a.clone() : b;
         }
+        // 跨世界插值没有意义，直接返回起点副本
+        if (a.getWorld() != null && b.getWorld() != null && !a.getWorld().equals(b.getWorld())) {
+            return a.clone();
+        }
         double x = lerp(a.getX(), b.getX(), t);
         double y = lerp(a.getY(), b.getY(), t);
         double z = lerp(a.getZ(), b.getZ(), t);
@@ -120,7 +124,13 @@ public final class MathUtils {
         if (a == null || b == null) {
             return 0;
         }
-        double dot = a.normalize().dot(b.normalize());
+        // 不要直接 normalize 入参：Bukkit 的 Vector#normalize 会原地修改
+        Vector va = a.clone();
+        Vector vb = b.clone();
+        if (va.lengthSquared() < 1.0e-12 || vb.lengthSquared() < 1.0e-12) {
+            return 0;
+        }
+        double dot = va.normalize().dot(vb.normalize());
         return Math.toDegrees(Math.acos(clamp(dot, -1.0, 1.0)));
     }
 
@@ -139,19 +149,31 @@ public final class MathUtils {
      * Round to decimals.
      */
     public static double round(double value, int decimals) {
-        double scale = Math.pow(10, decimals);
+        if (!Double.isFinite(value)) {
+            return value;
+        }
+        int d = Math.max(0, Math.min(decimals, 10));
+        double scale = Math.pow(10, d);
         return Math.round(value * scale) / scale;
     }
 
     /**
      * Format a double as 1 decimal string for UI.
+     * <p>
+     * 固定 {@link java.util.Locale#ROOT}，避免某些语言环境把小数点输出成逗号。
      */
     public static String format1(double value) {
-        return String.format("%.1f", value);
+        if (!Double.isFinite(value)) {
+            return "0.0";
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f", value);
     }
 
     public static String format2(double value) {
-        return String.format("%.2f", value);
+        if (!Double.isFinite(value)) {
+            return "0.00";
+        }
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
     }
 
     /**

@@ -17,11 +17,12 @@ public final class ParticleEffect implements SkillEffect {
     public ParticleEffect(Particle particle, int count,
                           double offsetX, double offsetY, double offsetZ, double extra) {
         this.particle = particle;
-        this.count = count;
-        this.offsetX = offsetX;
-        this.offsetY = offsetY;
-        this.offsetZ = offsetZ;
-        this.extra = extra;
+        // 计数为负会让服务端抛错；偏移/额外参数出现 NaN 会产生无效数据包
+        this.count = Math.max(0, Math.min(count, 4096));
+        this.offsetX = Double.isFinite(offsetX) ? offsetX : 0.0;
+        this.offsetY = Double.isFinite(offsetY) ? offsetY : 0.0;
+        this.offsetZ = Double.isFinite(offsetZ) ? offsetZ : 0.0;
+        this.extra = Double.isFinite(extra) ? extra : 0.0;
     }
 
     @Override

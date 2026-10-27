@@ -25,6 +25,17 @@ public final class CraftEngineHook {
     private CraftEngineHook() {
     }
 
+    /** 重置反射缓存（插件禁用 / 热重载时调用，避免引用旧类加载器的对象）。 */
+    public static synchronized void reset() {
+        initialized = false;
+        itemsClass = null;
+        byIdMethod = null;
+        buildWithPlayerMethod = null;
+        buildMethod = null;
+        isCustomItemMethod = null;
+        getCustomItemIdMethod = null;
+    }
+
     /** CraftEngine 插件是否已安装并可用。 */
     public static boolean isAvailable() {
         SkillCorePlugin plugin = SkillCorePlugin.getInstance();

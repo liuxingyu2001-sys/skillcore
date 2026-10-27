@@ -66,15 +66,28 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - 新增数值字段时同步改 `WeaponStats` 的字段、getter、`fromConfig`、`copy` 四处；**不自动填充默认键**，每个技能文件只写自己用到的键，缺失键用代码内置默认值
 - 玩家来源技能伤害必须走 `ctx.damage(...)` / `SkillDamageUtils.damage(...)`，不要直接 `target.damage(x, player)`；**吸血自动生效**：`ctx.damage*` 内部按 `stats.lifesteal()` 统一吸血，技能里无需再手动 `healSelfByDamage`
 - 所有 AOE / 射线 / 吸附 / 路径伤害必须经过 `TargetFilter`（过滤友军/宠物/NPC/盔甲架/同队/PvP 禁用世界）
+- **左右键严格分开**：`WeaponRegistry` 只在 `left-skill` 命中左键、`right-skill` 命中右键，不做跨键回退——避免一个键位重复释放 / 重复进冷却
+- `TargetFilter.filter(...)` 始终返回可修改的 `ArrayList`（调用方常会再 `remove` 自己/中心目标，不要改成返回 `List.of()`）
 - 触发键用 `SkillTrigger` 枚举；识别武器只认 PDC key `skillcore_weapon_id`（`WeaponItems.KEY_WEAPON_ID`），不要用 displayName 判断
 - 有持久状态（状态表 / BossBar / `BukkitRunnable`）的技能必须覆写 `WeaponSkill.cleanup()`，并在 `onPlayerQuit` 清理
 - 版本号在 `pom.xml` 的 `<version>`；`plugin.yml` 用 `${project.version}` 过滤
 
+## 边缘值防护（新增代码请沿用）
+
+- **数值来源一律 sanitize**：`WeaponStats.sanitize()` / `ArmorStats` 把 `skills/*.yml`、`armor/*.yml` 里的 NaN / 负数 / 过大值收敛到安全区间；新字段要一起加进去
+- 伤害、吸血、百分比伤害、音效音量/音调、粒子数量与偏移、显示物缩放都会校验 finite，NaN 直接跳过而不是发无效数据包
+- 跨世界调用前先比 `World`（`Location#distance`、`getNearbyEntities`、物理连线等），否则会抛 `IllegalArgumentException`
+- 动画类特效（`Effects.expandingRing` / `orbit` / `groundCracks` / `groundShatter`）对 tick 数与半径封顶，避免配置写错刷爆调度器或卡主线程
+- 配置里的冷却、时长、持续时间统一走 `CooldownUtils`（非有限值 / `<=0` 视为无冷却，上限 24 小时）
+
 ## 生命周期
 
 - `WeaponSkill.cleanup()` → `WeaponRegistry.cleanup()` → `SkillCorePlugin.onDisable()` / `reloadAll()` 触发
+- `ArmorManager.clearAll()` 会先给在线玩家补发 `ArmorSkill.onUnequip(...)` 再 `cleanup()`，重载/禁用时 BossBar 等临时状态不会残留
 - `WeaponInputListener` 在 `PlayerQuitEvent` / `PlayerItemHeldEvent` 清理双击/按住状态
 - `CombatListener` 在退出/死亡清理吸血/反伤 buff
+- 软依赖反射缓存（`VulcanHelper` / `CraftEngineHook` / `PacketEventsHook`）在 `onDisable` 调用各自的 `reset()`，避免热重载后引用旧类加载器对象
+- `/sc cooldown` 只重载受影响的那一把武器（`WeaponManager.reloadWeapon`），不再全量 `reloadAll`
 
 ## 特效接口 / 粒子 / CraftEngine 模型
 
@@ -129,7 +142,9 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `AreaUtils` / `AimUtils.getConeTargets` 用 `World.getNearbyEntities`（包围盒）先缩小候选集，不再遍历全图实体；射线用 `rayTraceEntities`
 - 盔甲周期任务每 tick 只派发 `onTick`（遍历穿戴整套的玩家，空操作）；整套穿戴检测每秒兜底一次，且通常由事件驱动
 - 冷却记录：玩家退出即 `CooldownUtils.clearAll`，另有每分钟清理过期条目；冷却提示按 `prompt-interval-ms` 节流
-- 特效统一走 `EffectSettings` 开关/密度，粒子 null/NaN 防护
+- 特效统一走 `EffectSettings` 开关/密度，粒子 null/NaN 防护；`ParticleUtils.line` / `boltPoints` 对折线点数封顶（1024），避免一次连线画出上万粒子
+- `TextUtils` 复用一个 `§` 序列化器实例，热路径（lore 刷新 / 命令输出）不再每次重建 `LegacyComponentSerializer`
+- 冷却键统一 `Locale.ROOT` 小写（`weapon:<id>:left|right`），`/sc cooldown` 的武器 id 大小写不一致也能命中同一条记录
 
 ## 遗留代码清理（已完成）
 

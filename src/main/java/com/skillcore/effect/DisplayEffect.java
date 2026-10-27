@@ -38,7 +38,8 @@ public final class DisplayEffect implements SkillEffect {
         ItemStack stack = resolveItem();
         if (stack == null || stack.getType().isAir()) return;
 
-        float s = scale <= 0 ? 1.0f : scale;
+        // 缩放必须是有限正数，否则构造 Transformation 会产生 NaN 变换（客户端渲染异常）
+        float s = Float.isFinite(scale) && scale > 0 ? Math.min(scale, 64.0f) : 1.0f;
         Quaternionf rotation = faceDirection ? directionToQuaternion(context.direction()) : identity();
         Location spawnAt = context.location().clone();
 

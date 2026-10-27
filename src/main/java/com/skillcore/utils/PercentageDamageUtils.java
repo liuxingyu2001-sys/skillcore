@@ -19,7 +19,7 @@ public final class PercentageDamageUtils {
      * @param percent 0.08 = 8% max HP
      */
     public static double ofMaxHealth(LivingEntity target, double percent) {
-        if (target == null || percent <= 0) {
+        if (target == null || !Double.isFinite(percent) || percent <= 0) {
             return 0.0;
         }
         return DamageUtils.getMaxHealth(target) * percent;
@@ -29,7 +29,7 @@ public final class PercentageDamageUtils {
      * Damage equal to a percent of target's CURRENT health.
      */
     public static double ofCurrentHealth(LivingEntity target, double percent) {
-        if (target == null || percent <= 0) {
+        if (target == null || !Double.isFinite(percent) || percent <= 0) {
             return 0.0;
         }
         return target.getHealth() * percent;
@@ -39,7 +39,7 @@ public final class PercentageDamageUtils {
      * Damage equal to a percent of target's MISSING health (execute / finisher).
      */
     public static double ofMissingHealth(LivingEntity target, double percent) {
-        if (target == null || percent <= 0) {
+        if (target == null || !Double.isFinite(percent) || percent <= 0) {
             return 0.0;
         }
         return DamageUtils.getMissingHealth(target) * percent;
@@ -52,7 +52,10 @@ public final class PercentageDamageUtils {
      */
     public static double ofMaxHealthCapped(LivingEntity target, double percent, double maxDamage) {
         double damage = ofMaxHealth(target, percent);
-        return maxDamage > 0 ? Math.min(damage, maxDamage) : damage;
+        if (Double.isFinite(maxDamage) && maxDamage > 0) {
+            damage = Math.min(damage, maxDamage);
+        }
+        return Double.isFinite(damage) && damage > 0 ? damage : 0.0;
     }
 
     /**
@@ -60,7 +63,10 @@ public final class PercentageDamageUtils {
      */
     public static double ofCurrentHealthCapped(LivingEntity target, double percent, double maxDamage) {
         double damage = ofCurrentHealth(target, percent);
-        return maxDamage > 0 ? Math.min(damage, maxDamage) : damage;
+        if (Double.isFinite(maxDamage) && maxDamage > 0) {
+            damage = Math.min(damage, maxDamage);
+        }
+        return Double.isFinite(damage) && damage > 0 ? damage : 0.0;
     }
 
     /**
@@ -72,12 +78,16 @@ public final class PercentageDamageUtils {
             double percentMax,
             double percentMissing
     ) {
+        if (!Double.isFinite(flat)) {
+            flat = 0.0;
+        }
         if (target == null) {
             return Math.max(0.0, flat);
         }
-        return flat
+        double total = flat
                 + ofMaxHealth(target, percentMax)
                 + ofMissingHealth(target, percentMissing);
+        return Double.isFinite(total) ? Math.max(0.0, total) : Math.max(0.0, flat);
     }
 
     /**
@@ -89,6 +99,9 @@ public final class PercentageDamageUtils {
      */
     public static double executeIfBelow(LivingEntity target, double healthThreshold, double executePercent) {
         if (target == null) {
+            return 0.0;
+        }
+        if (!Double.isFinite(healthThreshold) || !Double.isFinite(executePercent)) {
             return 0.0;
         }
         if (DamageUtils.getHealthPercent(target) > healthThreshold) {
@@ -127,7 +140,7 @@ public final class PercentageDamageUtils {
 
     public static void dealPercentOfMissingHealth(LivingEntity attacker, LivingEntity target, double percent, double maxDamage) {
         double damage = ofMissingHealth(target, percent);
-        if (maxDamage > 0) {
+        if (Double.isFinite(maxDamage) && maxDamage > 0) {
             damage = Math.min(damage, maxDamage);
         }
         if (damage > 0) {
@@ -139,14 +152,18 @@ public final class PercentageDamageUtils {
      * Soft damage that reduces health without killing (min HP floor).
      */
     public static double dealPercentNonLethal(LivingEntity target, double percent, double minHealthLeft) {
-        if (target == null || percent <= 0) {
+        if (target == null || percent <= 0 || !Double.isFinite(percent)) {
             return 0.0;
         }
-        double damage = ofCurrentHealth(target, percent);
-        double maxDamage = target.getHealth() - Math.max(0.0, minHealthLeft);
-        damage = Math.min(damage, Math.max(0.0, maxDamage));
+        double maxHealth = DamageUtils.getMaxHealth(target);
+        double floor = Math.min(Math.max(0.0, minHealthLeft), Math.max(0.0, maxHealth));
+        double maxDamage = target.getHealth() - floor;
+        if (maxDamage <= 0) {
+            return 0.0;
+        }
+        double damage = Math.min(ofCurrentHealth(target, percent), maxDamage);
         if (damage > 0) {
-            target.setHealth(Math.max(minHealthLeft, target.getHealth() - damage));
+            target.setHealth(Math.max(floor, target.getHealth() - damage));
         }
         return damage;
     }

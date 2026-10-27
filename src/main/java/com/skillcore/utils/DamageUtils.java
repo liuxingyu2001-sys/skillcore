@@ -301,7 +301,20 @@ public final class DamageUtils {
     public static LivingEntity getDamager(EntityDamageEvent event) {
         if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent byEntity) {
             Entity damager = byEntity.getDamager();
-            return damager instanceof LivingEntity living ? living : null;
+            if (damager instanceof LivingEntity living) {
+                return living;
+            }
+            // 投射物（箭/三叉戟/雪球等）伤害：还原到射击者，否则远程攻击永远不触发
+            // 吸血 / 反伤 / 命中附带效果
+            if (damager instanceof org.bukkit.entity.Projectile projectile
+                    && projectile.getShooter() instanceof LivingEntity shooter) {
+                return shooter;
+            }
+            // TNT 等爆炸物还原到点燃者
+            if (damager instanceof org.bukkit.entity.TNTPrimed tnt
+                    && tnt.getSource() instanceof LivingEntity source) {
+                return source;
+            }
         }
         return null;
     }
@@ -354,7 +367,7 @@ public final class DamageUtils {
      * Debug print for damage calculation (respects debug flag caller-side).
      */
     public static String describeCalculation(String label, double base, double finalDamage) {
-        return String.format("[Damage] %s base=%.2f final=%.2f", label, base, finalDamage);
+        return String.format(java.util.Locale.ROOT, "[Damage] %s base=%.2f final=%.2f", label, base, finalDamage);
     }
 
     /**

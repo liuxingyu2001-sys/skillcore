@@ -71,21 +71,26 @@ public abstract class AbstractWeaponSkill implements WeaponSkill {
     protected double strike(WeaponContext ctx) {
         LivingEntity victim = ctx.aimTarget();
         if (victim == null) return 0;
-        double dealt = ctx.damage(victim);
-        ctx.hitFx(victim);
-        return dealt;
+        // ctx.damage 内部已播放 hitFx，这里不要重复播放
+        return ctx.damage(victim);
     }
 
-    /** 多目标横扫。 */
+    /**
+     * 多目标横扫：主目标吃完整伤害，周围敌人吃 {@code aoe-damage-ratio} 溅射。
+     * <p>
+     * 注意 {@link WeaponContext#aoeFrom} 已负责对周围目标造成溅射伤害并排除中心目标，
+     * 这里只需要给主目标补一次完整伤害，不能再对溅射列表重复造成伤害。
+     */
     protected List<LivingEntity> sweep(WeaponContext ctx) {
         LivingEntity center = ctx.aimTarget();
         if (center == null) {
             return java.util.List.of();
         }
-        List<LivingEntity> hit = ctx.aoeFrom(center, ctx.stats().aoeRadius());
-        for (LivingEntity e : hit) {
-            ctx.damage(e);
-        }
+        ctx.damage(center);
+        List<LivingEntity> splash = ctx.aoeFrom(center, ctx.stats().aoeRadius());
+        List<LivingEntity> hit = new java.util.ArrayList<>(splash.size() + 1);
+        hit.add(center);
+        hit.addAll(splash);
         return hit;
     }
 

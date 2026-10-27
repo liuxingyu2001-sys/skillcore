@@ -39,6 +39,7 @@ public final class SkillCorePlugin extends JavaPlugin {
     private org.bukkit.scheduler.BukkitTask armorTicker;
     private int armorTickCounter;
     private org.bukkit.scheduler.BukkitTask cooldownCleanupTask;
+    private com.skillcore.hook.SkillCorePlaceholders placeholderHook;
 
     public static SkillCorePlugin getInstance() {
         return instance;
@@ -50,7 +51,6 @@ public final class SkillCorePlugin extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         configManager.load();
-        configManager.startPolling();
 
         weaponFactory = new WeaponFactory();
         weaponRegistry = new WeaponRegistry();
@@ -80,12 +80,17 @@ public final class SkillCorePlugin extends JavaPlugin {
         if (getCommand("skillcore") != null) {
             getCommand("skillcore").setExecutor(command);
             getCommand("skillcore").setTabCompleter(command);
+        } else {
+            getLogger().warning("plugin.yml 中缺少 skillcore 命令定义，/sc 将不可用。");
         }
 
         registerPlaceholders();
 
         testDummyManager = new com.skillcore.dummy.TestDummyManager(this);
         getServer().getPluginManager().registerEvents(testDummyManager, this);
+
+        // 所有管理器就绪后再启动共享配置轮询，避免首轮 reload 时管理器还没创建
+        configManager.startPolling();
 
         getLogger().info("SkillCore enabled. Skill weapons: " + weaponCount + ", armor sets: " + armorCount);
     }
@@ -130,8 +135,13 @@ public final class SkillCorePlugin extends JavaPlugin {
             return;
         }
         try {
-            new com.skillcore.hook.SkillCorePlaceholders(this).register();
-            getLogger().info("Hooked into PlaceholderAPI.");
+            com.skillcore.hook.SkillCorePlaceholders placeholders = new com.skillcore.hook.SkillCorePlaceholders(this);
+            if (placeholders.register()) {
+                placeholderHook = placeholders;
+                getLogger().info("Hooked into PlaceholderAPI.");
+            } else {
+                getLogger().warning("PlaceholderAPI 已安装但占位符注册失败（可能是 PAPI 版本不兼容）。");
+            }
         } catch (Throwable ex) {
             getLogger().warning("Failed to register PlaceholderAPI placeholders: " + ex.getMessage());
         }
@@ -159,7 +169,24 @@ public final class SkillCorePlugin extends JavaPlugin {
         if (armorManager != null) {
             armorManager.clearAll();
         }
-        com.skillcore.utils.CooldownUtils.cleanup();
+        com.skillcore.utils.CooldownUtils.clearAll();
+        com.skillcore.utils.ReflectDamageUtils.clearAllBuffs();
+        // 反作弊反射缓存重置，避免热重载后引用旧 Vulcan 实例
+        com.skillcore.utils.VulcanHelper.reset();
+        com.skillcore.hook.CraftEngineHook.reset();
+        com.skillcore.hook.PacketEventsHook.reset();
+        if (testDummyManager != null) {
+            testDummyManager.shutdown();
+        }
+        // 注销占位符，避免插件重载（如 PlugMan）后 PAPI 留着旧实例
+        if (placeholderHook != null) {
+            try {
+                placeholderHook.unregister();
+            } catch (Throwable ignored) {
+                // PAPI 卸载阶段可能已不可用，忽略
+            }
+            placeholderHook = null;
+        }
         getLogger().info("SkillCore disabled.");
         instance = null;
     }

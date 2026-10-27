@@ -143,8 +143,17 @@ public final class WeaponFactory {
 
     public WeaponSkill createSkill(String type, SkillWeapon weapon) {
         if (type == null) return new StrikeSkill();
-        Function<SkillWeapon, WeaponSkill> fn = skillCreators.get(type.toUpperCase(Locale.ROOT));
-        return fn != null ? fn.apply(weapon) : new StrikeSkill();
+        String key = type.trim().toUpperCase(Locale.ROOT);
+        if (key.isEmpty()) return new StrikeSkill();
+        Function<SkillWeapon, WeaponSkill> fn = skillCreators.get(key);
+        if (fn == null) {
+            // 配置里写了不存在的技能 key 时不要静默降级为“普通强击”，否则很难排查
+            org.bukkit.Bukkit.getLogger().warning(
+                    "未知武器技能类型: " + type + "（武器 " + (weapon == null ? "?" : weapon.id())
+                            + "），已回退为 STRIKE，请检查 skills/*.yml 的 right-skill / left-skill");
+            return new StrikeSkill();
+        }
+        return fn.apply(weapon);
     }
 
     // ------------------------------------------------------------------
@@ -175,7 +184,7 @@ public final class WeaponFactory {
         }
         String displayName = section.getString("display-name", id);
         String description = section.getString("description", "");
-        Material material = parseMaterial(section.getString("material", "IRON_SWORD"));
+        Material material = parseMaterial(section.getString("material", "IRON_SWORD"), id);
         List<String> lore = section.getStringList("lore");
 
         String rightSkill = firstString(section,
@@ -204,8 +213,8 @@ public final class WeaponFactory {
 
         return new SkillWeapon(
                 id, displayName, description, material, lore,
-                parseTrigger(rightTriggerRaw),
-                parseTrigger(leftTriggerRaw),
+                parseTrigger(rightTriggerRaw, id, "right-trigger"),
+                parseTrigger(leftTriggerRaw, id, "left-trigger"),
                 rightSkill,
                 leftSkill,
                 stats, cmd, glow, craftEngineModel, unbreakable, enchantments
@@ -246,17 +255,24 @@ public final class WeaponFactory {
         return result;
     }
 
-    private static Material parseMaterial(String raw) {
-        if (raw == null || raw.isEmpty()) return Material.IRON_SWORD;
-        Material m = Material.matchMaterial(raw);
-        return m == null ? Material.IRON_SWORD : m;
+    private static Material parseMaterial(String raw, String weaponId) {
+        if (raw == null || raw.isBlank()) return Material.IRON_SWORD;
+        Material m = Material.matchMaterial(raw.trim());
+        if (m == null) {
+            org.bukkit.Bukkit.getLogger().warning(
+                    "武器 " + weaponId + " 的 material 无效: " + raw + "，已回退为 IRON_SWORD");
+            return Material.IRON_SWORD;
+        }
+        return m;
     }
 
-    private static com.skillcore.weapon.SkillTrigger parseTrigger(String raw) {
-        if (raw == null) return com.skillcore.weapon.SkillTrigger.RIGHT_CLICK;
+    private static com.skillcore.weapon.SkillTrigger parseTrigger(String raw, String weaponId, String key) {
+        if (raw == null || raw.isBlank()) return com.skillcore.weapon.SkillTrigger.RIGHT_CLICK;
         try {
             return com.skillcore.weapon.SkillTrigger.valueOf(raw.trim().toUpperCase(Locale.ROOT).replace('-', '_'));
         } catch (Exception ex) {
+            org.bukkit.Bukkit.getLogger().warning(
+                    "武器 " + weaponId + " 的 " + key + " 无效: " + raw + "，已回退为 RIGHT_CLICK");
             return com.skillcore.weapon.SkillTrigger.RIGHT_CLICK;
         }
     }

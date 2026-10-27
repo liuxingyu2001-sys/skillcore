@@ -22,6 +22,9 @@ public final class TextUtils {
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.legacyAmpersand();
+    /** 输出 § 颜色码（支持 hex），复用一个实例避免每次 toLegacy 都重建。 */
+    private static final LegacyComponentSerializer SECTION =
+            LegacyComponentSerializer.builder().character('§').hexColors().build();
 
     private TextUtils() {
     }
@@ -52,10 +55,6 @@ public final class TextUtils {
 
     /** 转成旧式 § 字符串（用于不支持 Component 的接口，渐变会退化为单色）。 */
     public static String toLegacy(String input) {
-        return LegacyComponentSerializer.builder()
-                .character('§')
-                .hexColors()
-                .build()
-                .serialize(parse(input));
+        return SECTION.serialize(parse(input));
     }
 }

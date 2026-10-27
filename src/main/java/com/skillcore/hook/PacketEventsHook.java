@@ -3,11 +3,13 @@ package com.skillcore.hook;
 import com.skillcore.SkillCorePlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +47,21 @@ public final class PacketEventsHook {
     public static boolean isAvailable() {
         ensureInit();
         return available;
+    }
+
+    /** 重置缓存（插件禁用 / 热重载时调用）。 */
+    public static synchronized void reset() {
+        initialized = false;
+        available = false;
+        api = null;
+        protocolManager = null;
+        playerManager = null;
+        getChannelByUuid = null;
+        sendPacket = null;
+        getUser = null;
+        userGetChannel = null;
+        vector3iCtor = null;
+        blockBreakCtor = null;
     }
 
     private static void ensureInit() {
@@ -138,9 +155,26 @@ public final class PacketEventsHook {
         if (!isAvailable() || viewers == null || viewers.isEmpty() || blocks == null || blocks.isEmpty()) {
             return;
         }
+        SkillCorePlugin plugin = SkillCorePlugin.getInstance();
+        if (plugin == null || !plugin.isEnabled()) {
+            return;
+        }
         List<Player> online = viewers.stream().filter(Player::isOnline).toList();
         if (online.isEmpty()) return;
         List<Block> list = blocks.stream().limit(MAX_BLOCKS).toList();
+        // 主线程取快照：后续定时任务里不再访问 Bukkit Block 对象（区块可能已卸载）
+        List<BlockPos> snapshot = new ArrayList<>(list.size());
+        for (Block block : list) {
+            BlockData data;
+            try {
+                data = block.getBlockData();
+            } catch (Throwable ex) {
+                continue;
+            }
+            snapshot.add(new BlockPos(block.getWorld(), block.getX(), block.getY(), block.getZ(), data));
+        }
+        if (snapshot.isEmpty()) return;
+        final List<BlockPos> positions = List.copyOf(snapshot);
 
         // 渐进裂纹：几帧推进到完全碎裂
         int[] stages = {0, 3, 6, 8, 9};
@@ -148,42 +182,48 @@ public final class PacketEventsHook {
         for (int stage : stages) {
             final long delay = tick++;
             final int s = stage;
-            schedule(delay, () -> sendStage(online, list, s));
+            schedule(delay, () -> sendStage(online, positions, s));
         }
-        schedule(tick + Math.max(0, restoreAfterTicks), () -> restore(online, list));
+        schedule(tick + Math.max(0, restoreAfterTicks), () -> restore(online, positions));
     }
 
-    private static void sendStage(List<Player> viewers, List<Block> blocks, int stage) {
-        for (Block block : blocks) {
-            int entityId = entityId(block);
+    /** 方块位置 + 原方块数据快照（可在定时任务中安全使用，不持有 Block 引用）。 */
+    private record BlockPos(org.bukkit.World world, int x, int y, int z, BlockData data) {
+        int entityId() {
+            return (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+        }
+    }
+
+    private static void sendStage(List<Player> viewers, List<BlockPos> blocks, int stage) {
+        for (BlockPos block : blocks) {
             for (Player viewer : viewers) {
-                sendBlockBreak(viewer, entityId,
-                        block.getX(), block.getY(), block.getZ(), stage);
+                if (!viewer.isOnline() || !viewer.getWorld().equals(block.world())) continue;
+                sendBlockBreak(viewer, block.entityId(), block.x(), block.y(), block.z(), stage);
             }
         }
     }
 
-    private static void restore(List<Player> viewers, List<Block> blocks) {
+    private static void restore(List<Player> viewers, List<BlockPos> blocks) {
         for (Player viewer : viewers) {
             if (!viewer.isOnline()) continue;
-            for (Block block : blocks) {
-                // Bukkit 自带 sendBlockChange 会按玩家版本正确编码，清除裂纹覆盖层
-                viewer.sendBlockChange(block.getLocation(), block.getBlockData());
+            for (BlockPos block : blocks) {
+                if (!viewer.getWorld().equals(block.world())) continue;
+                // 用真实方块数据覆盖，清除客户端裂纹渲染（不修改服务器方块）
+                org.bukkit.Location loc = new org.bukkit.Location(block.world(), block.x(), block.y(), block.z());
+                BlockData live;
+                try {
+                    live = loc.getBlock().getBlockData();
+                } catch (Throwable ex) {
+                    live = block.data();
+                }
+                viewer.sendBlockChange(loc, live);
             }
         }
-    }
-
-    /** 稳定且可复现的方块实体 id（用于裂纹动画标识）。 */
-    private static int entityId(Block block) {
-        int x = block.getX();
-        int y = block.getY();
-        int z = block.getZ();
-        return (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
     }
 
     private static void schedule(long ticks, Runnable task) {
         SkillCorePlugin plugin = SkillCorePlugin.getInstance();
-        if (plugin == null) return;
+        if (plugin == null || !plugin.isEnabled()) return;
         plugin.getServer().getScheduler().runTaskLater(plugin, task, Math.max(0, ticks));
     }
 }

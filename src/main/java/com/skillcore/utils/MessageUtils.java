@@ -87,9 +87,13 @@ public final class MessageUtils {
         if (template == null) {
             return "";
         }
+        if (keyValues == null || keyValues.length < 2) {
+            return template;
+        }
         String result = template;
         for (int i = 0; i + 1 < keyValues.length; i += 2) {
-            result = result.replace("{" + keyValues[i] + "}", keyValues[i + 1]);
+            if (keyValues[i] == null) continue;
+            result = result.replace("{" + keyValues[i] + "}", keyValues[i + 1] == null ? "" : keyValues[i + 1]);
         }
         return result;
     }

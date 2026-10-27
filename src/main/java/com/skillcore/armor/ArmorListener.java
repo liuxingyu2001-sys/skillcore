@@ -12,15 +12,23 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 盔甲穿戴监听 — 背包变动后下一 tick 重算该玩家的整套加成。
  * <p>
- * 另有一个周期任务兜底（见 {@link SkillCorePlugin} 的 armor ticker）。
+ * 背包点击 / 拖拽可能一 tick 内触发多次，这里按玩家合并为一次重算，
+ * 避免一次拖拽触发十几个 {@code runTask}。另有一个周期任务兜底（见 {@link SkillCorePlugin} 的 armor ticker）。
  */
 public final class ArmorListener implements Listener {
 
     private final SkillCorePlugin plugin;
     private final ArmorManager manager;
+
+    /** 本 tick 内已排队重算的玩家（合并重复事件）。 */
+    private final Set<UUID> pending = ConcurrentHashMap.newKeySet();
 
     public ArmorListener(SkillCorePlugin plugin, ArmorManager manager) {
         this.plugin = plugin;
@@ -31,7 +39,17 @@ public final class ArmorListener implements Listener {
         if (player == null || !player.isOnline()) {
             return;
         }
-        plugin.getServer().getScheduler().runTask(plugin, () -> manager.recompute(player));
+        UUID id = player.getUniqueId();
+        if (!pending.add(id)) {
+            return;
+        }
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            pending.remove(id);
+            Player current = plugin.getServer().getPlayer(id);
+            if (current != null && current.isOnline()) {
+                manager.recompute(current);
+            }
+        });
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -72,6 +90,7 @@ public final class ArmorListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        pending.remove(event.getPlayer().getUniqueId());
         manager.clearPlayer(event.getPlayer().getUniqueId());
     }
 }

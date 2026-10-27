@@ -57,7 +57,8 @@ public final class StormHammerFx {
 
     /** 上升过程逐 tick：围绕玩家的螺旋风涡 + 电光 + 拖尾。 */
     public static void ascendTick(Location loc, int tick) {
-        double radius = 1.0 + tick * 0.15;
+        // 螺旋/风涡半径在上升过程中缓慢扩张，但限制上限，避免长滞空时特效铺满屏幕
+        double radius = Math.min(2.5, 1.0 + tick * 0.15);
         ParticleUtils.helix(loc.clone().add(0, -0.3, 0), radius, 2.8, Particle.ELECTRIC_SPARK, 18);
         ParticleUtils.helix(loc.clone().add(0, -0.3, 0), radius * 0.6, 2.4, Particle.SMALL_GUST, 12);
         ParticleUtils.dust(loc.clone().add(0, 0.5, 0), PURPLE, 1.1f, 3);

@@ -2,6 +2,7 @@ package com.skillcore.weapon;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,19 +28,30 @@ public final class WeaponRegistry {
         public WeaponSkill skill() { return skill; }
         public WeaponSkill leftSkill() { return leftSkill; }
 
+        /**
+         * 按点击侧解析技能：左键只认 left-skill，右键只认 right-skill。
+         * <p>
+         * 不做跨键回退：只配置了 right-skill 的武器，左键不应该再放一次右键技能，
+         * 否则同一技能会拥有左右两套独立冷却（可被利用来双倍释放）。
+         */
         public WeaponSkill resolve(boolean leftClick) {
-            if (leftClick) {
-                return leftSkill != null ? leftSkill : skill;
-            }
-            return skill != null ? skill : leftSkill;
+            return leftClick ? leftSkill : skill;
         }
     }
 
     private final Map<String, Entry> weapons = new ConcurrentHashMap<>();
 
+    private static String normalize(String id) {
+        return id == null ? null : id.trim().toLowerCase(Locale.ROOT);
+    }
+
     public void register(SkillWeapon weapon, WeaponSkill rightSkill, WeaponSkill leftSkill) {
-        if (weapon == null || weapon.id() == null) return;
-        weapons.put(weapon.id().toLowerCase(), new Entry(weapon, rightSkill, leftSkill));
+        String id = weapon == null ? null : normalize(weapon.id());
+        if (id == null || id.isEmpty()) return;
+        if (weapons.containsKey(id)) {
+            org.bukkit.Bukkit.getLogger().warning("重复注册的武器 id: " + id + "，后注册的配置已覆盖前一份");
+        }
+        weapons.put(id, new Entry(weapon, rightSkill, leftSkill));
     }
 
     public void register(Entry entry) {
@@ -49,11 +61,13 @@ public final class WeaponRegistry {
     }
 
     public boolean unregister(String id) {
-        return id != null && weapons.remove(id.toLowerCase()) != null;
+        String key = normalize(id);
+        return key != null && weapons.remove(key) != null;
     }
 
     public Optional<Entry> getEntry(String id) {
-        return id == null ? Optional.empty() : Optional.ofNullable(weapons.get(id.toLowerCase()));
+        String key = normalize(id);
+        return key == null ? Optional.empty() : Optional.ofNullable(weapons.get(key));
     }
 
     public SkillWeapon get(String id) {
@@ -65,7 +79,8 @@ public final class WeaponRegistry {
     }
 
     public boolean has(String id) {
-        return id != null && weapons.containsKey(id.toLowerCase());
+        String key = normalize(id);
+        return key != null && weapons.containsKey(key);
     }
 
     public Collection<Entry> all() {
@@ -86,7 +101,10 @@ public final class WeaponRegistry {
     public void cleanup() {
         for (Entry entry : weapons.values()) {
             safeCleanup(entry.skill());
-            safeCleanup(entry.leftSkill());
+            // 左右键可能共用同一个实例，避免重复 cleanup
+            if (entry.leftSkill() != entry.skill()) {
+                safeCleanup(entry.leftSkill());
+            }
         }
         weapons.clear();
     }

@@ -52,7 +52,15 @@ public final class SunfireBladeSkill extends AbstractWeaponSkill {
         }
         lastProc.put(player.getUniqueId(), now);
 
-        double bonus = flat + DamageUtils.getMaxHealth(victim) * percent;
+        double percentDamage = DamageUtils.getMaxHealth(victim) * percent;
+        double cap = ctx.stats().percentDamageCap();
+        if (cap > 0) {
+            percentDamage = Math.min(percentDamage, cap);
+        }
+        double bonus = flat + Math.max(0.0, percentDamage);
+        if (bonus <= 0) {
+            return;
+        }
         SkillDamageUtils.damage(victim, bonus, player, ctx.skillSource());
         ParticleUtils.hitMarker(victim, Particle.FLAME);
     }
@@ -60,5 +68,12 @@ public final class SunfireBladeSkill extends AbstractWeaponSkill {
     @Override
     public void cleanup() {
         lastProc.clear();
+    }
+
+    @Override
+    public void onQuit(Player player) {
+        if (player != null) {
+            lastProc.remove(player.getUniqueId());
+        }
     }
 }

@@ -122,12 +122,20 @@ public final class ConfigManager {
 
     /** 首次运行把 jar 内置的指定目录下 *.yml 复制到数据目录（已存在则跳过）。 */
     private void copyDefaultFiles(String dirPrefix, File targetDir, String label) {
-        File jarFile = pluginJarFile();
-        if (jarFile == null || !jarFile.isFile() || targetDir == null) {
+        File source = pluginJarFile();
+        if (source == null || targetDir == null) {
+            return;
+        }
+        // 开发环境（target/classes 直接加载）时 source 是目录，不是 jar
+        if (source.isDirectory()) {
+            copyDefaultFilesFromDir(new File(source, dirPrefix), targetDir, dirPrefix, label);
+            return;
+        }
+        if (!source.isFile()) {
             return;
         }
         String prefix = dirPrefix + "/";
-        try (JarFile jar = new JarFile(jarFile)) {
+        try (JarFile jar = new JarFile(source)) {
             var entries = jar.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
@@ -148,6 +156,28 @@ public final class ConfigManager {
         }
     }
 
+    /** 从展开的目录（开发环境）复制默认配置。 */
+    private void copyDefaultFilesFromDir(File sourceDir, File targetDir, String dirPrefix, String label) {
+        if (sourceDir == null || !sourceDir.isDirectory()) {
+            return;
+        }
+        File[] files = sourceDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return;
+        }
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        for (File file : files) {
+            File target = new File(targetDir, file.getName());
+            if (target.exists()) continue;
+            try {
+                Files.copy(file.toPath(), target.toPath());
+                plugin.getLogger().info("已复制默认" + label + "配置: " + dirPrefix + "/" + file.getName());
+            } catch (IOException ex) {
+                plugin.getLogger().log(Level.WARNING, "复制内置" + label + "文件失败: " + file.getName(), ex);
+            }
+        }
+    }
+
     /**
      * 重新读取 skills 目录下所有 yml。
      * <p>
@@ -156,7 +186,8 @@ public final class ConfigManager {
     private void reloadSkills() {
         skillConfigs.clear();
         skillFiles.clear();
-        File[] files = skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        File[] files = skillsDir == null ? new File[0]
+                : skillsDir.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
             files = new File[0];
         }
@@ -165,17 +196,36 @@ public final class ConfigManager {
         long stamp = 0;
         int count = 0;
         for (File file : files) {
+            count++;
             YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
             String fileName = file.getName();
             String base = fileName.substring(0, fileName.length() - 4);
-            String id = cfg.getString("id", base);
-            skillConfigs.put(id.toLowerCase(Locale.ROOT), cfg);
-            skillFiles.put(id.toLowerCase(Locale.ROOT), file);
+            String id = normalizeId(cfg.getString("id"), base, file);
+            if (id == null) continue;
+            if (skillConfigs.containsKey(id)) {
+                plugin.getLogger().warning("重复的技能 id: " + id + "（文件 " + fileName + " 覆盖了 "
+                        + skillFiles.get(id).getName() + "）");
+            }
+            skillConfigs.put(id, cfg);
+            skillFiles.put(id, file);
             stamp = Math.max(stamp, file.lastModified());
-            count++;
         }
         this.skillsStamp = stamp;
         this.skillsFileCount = count;
+    }
+
+    /**
+     * 规范化配置里的 id：去空白、转小写；空值回退文件名。
+     *
+     * @return 规范化后的 id；文件名本身也非法时返回 null
+     */
+    private String normalizeId(String raw, String fallback, File file) {
+        String id = raw == null || raw.isBlank() ? fallback : raw.trim();
+        if (id == null || id.isBlank()) {
+            plugin.getLogger().warning("跳过无法确定 id 的配置文件: " + file.getName());
+            return null;
+        }
+        return id.toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -194,14 +244,19 @@ public final class ConfigManager {
         long stamp = 0;
         int count = 0;
         for (File file : files) {
+            count++;
             YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
             String fileName = file.getName();
             String base = fileName.substring(0, fileName.length() - 4);
-            String id = cfg.getString("id", base);
-            armorConfigs.put(id.toLowerCase(Locale.ROOT), cfg);
-            armorFiles.put(id.toLowerCase(Locale.ROOT), file);
+            String id = normalizeId(cfg.getString("id"), base, file);
+            if (id == null) continue;
+            if (armorConfigs.containsKey(id)) {
+                plugin.getLogger().warning("重复的盔甲套装 id: " + id + "（文件 " + fileName + " 覆盖了 "
+                        + armorFiles.get(id).getName() + "）");
+            }
+            armorConfigs.put(id, cfg);
+            armorFiles.put(id, file);
             stamp = Math.max(stamp, file.lastModified());
-            count++;
         }
         this.armorStamp = stamp;
         this.armorFileCount = count;
@@ -391,6 +446,27 @@ public final class ConfigManager {
         }
         plugin.getLogger().info("Loaded " + count + " skill weapon(s) from skills/");
         return count;
+    }
+
+    /**
+     * 只重新读取指定的技能文件（{@code /sc cooldown} 回写后使用），
+     * 避免一次命令触发全量重载（会打断玩家正在进行的技能状态）。
+     *
+     * @return 是否读取成功
+     */
+    public boolean reloadSkillFile(String id) {
+        File file = getSkillFile(id);
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        String key = id.toLowerCase(Locale.ROOT);
+        skillConfigs.put(key, cfg);
+        return true;
+    }
+
+    public YamlConfiguration getSkillConfig(String id) {
+        return id == null ? null : skillConfigs.get(id.toLowerCase(Locale.ROOT));
     }
 
     /**

@@ -59,8 +59,8 @@ public final class WeaponManager {
     public boolean triggerHeld(Player player, SkillTrigger trigger) {
         if (player == null || trigger == null) return false;
         ItemStack item = player.getInventory().getItemInMainHand();
-        String weaponId = WeaponItems.getHeldWeaponId(
-                com.skillcore.SkillCorePlugin.getInstance(), player);
+        String weaponId = WeaponItems.getWeaponId(
+                com.skillcore.SkillCorePlugin.getInstance(), item);
         if (weaponId == null) return false;
 
         WeaponRegistry.Entry entry = registry.getEntry(weaponId).orElse(null);
@@ -208,7 +208,11 @@ public final class WeaponManager {
     }
 
     private String cooldownKey(String weaponId, SkillTrigger trigger) {
-        return "weapon:" + weaponId + ":" + trigger.name();
+        // 按“技能侧”而不是具体触发键分组：Shift+左键与左键是同一个技能，
+        // 必须共享冷却，否则可以用 Shift 组合绕过冷却连续释放。
+        boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
+        String id = weaponId == null ? "" : weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        return "weapon:" + id + (leftClick ? ":left" : ":right");
     }
 
     /**
@@ -261,7 +265,8 @@ public final class WeaponManager {
         }
         lastCooldownPrompt.put(player.getUniqueId(), now);
         double remain = CooldownUtils.getRemaining(player.getUniqueId(), cdKey);
-        MessageUtils.sendActionBar(player, "&c冷却中 &f" + String.format("%.1f", remain) + "s");
+        MessageUtils.sendActionBar(player, "&c冷却中 &f"
+                + String.format(java.util.Locale.ROOT, "%.1f", remain) + "s");
         SoundUtils.cooldown(player);
     }
 
@@ -295,34 +300,124 @@ public final class WeaponManager {
     }
 
     public double getCooldownRemaining(Player player, String weaponId, SkillTrigger trigger) {
+        if (player == null) return 0.0;
         return CooldownUtils.getRemaining(player.getUniqueId(), cooldownKey(weaponId, trigger));
     }
 
     /**
-     * 清除冷却。
+     * 清除指定武器左右两侧的冷却（玩家为 null 时忽略）。
      */
     public void clearCooldown(Player player, String weaponId) {
-        CooldownUtils.clearAll(player.getUniqueId());
+        if (player == null) return;
+        String id = weaponId == null ? "" : weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        if (id.isEmpty()) {
+            CooldownUtils.clearAll(player.getUniqueId());
+            return;
+        }
+        CooldownUtils.clear(player.getUniqueId(), "weapon:" + id + ":left");
+        CooldownUtils.clear(player.getUniqueId(), "weapon:" + id + ":right");
+    }
+
+    /**
+     * 重新读取指定武器的配置并替换注册表中的条目（{@code /sc cooldown} 写回后使用）。
+     * <p>
+     * 只替换该武器，不影响其他武器正在运行的状态。
+     *
+     * @return 是否替换成功
+     */
+    public boolean reloadWeapon(String weaponId) {
+        if (weaponId == null) return false;
+        var configManager = com.skillcore.SkillCorePlugin.getInstance().getConfigManager();
+        if (!configManager.reloadSkillFile(weaponId)) return false;
+        String key = weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        var section = configManager.getSkillConfig(key);
+        if (section == null) return false;
+        try {
+            SkillWeapon weapon = factory.parse(key, section);
+            WeaponSkill right = factory.createSkill(weapon.rightSkillType(), weapon);
+            WeaponSkill left = weapon.leftSkillType() != null
+                    ? factory.createSkill(weapon.leftSkillType(), weapon)
+                    : null;
+            WeaponRegistry.Entry old = registry.getEntry(key).orElse(null);
+            registry.register(weapon, right, left);
+            // 旧实例的持久状态（状态表 / 定时任务）需要清理
+            if (old != null) {
+                safeCleanup(old.skill());
+                if (old.leftSkill() != old.skill()) {
+                    safeCleanup(old.leftSkill());
+                }
+            }
+            return true;
+        } catch (Exception ex) {
+            com.skillcore.SkillCorePlugin.getInstance().getLogger()
+                    .severe("重载武器配置失败 [" + weaponId + "]: " + ex);
+            return false;
+        }
+    }
+
+    private void safeCleanup(WeaponSkill skill) {
+        if (skill == null) return;
+        try {
+            skill.cleanup();
+        } catch (Exception ex) {
+            com.skillcore.SkillCorePlugin.getInstance().getLogger()
+                    .warning("Weapon skill cleanup error [" + skill.getType() + "]: " + ex);
+        }
+    }
+
+    /**
+     * 玩家退出时通知所有武器技能清理该玩家的状态（状态表等）。
+     */
+    public void notifyQuit(Player player) {
+        if (player == null) return;
+        for (WeaponRegistry.Entry entry : registry.all()) {
+            safeOnQuit(entry.skill(), player);
+            if (entry.leftSkill() != entry.skill()) {
+                safeOnQuit(entry.leftSkill(), player);
+            }
+        }
+    }
+
+    private void safeOnQuit(WeaponSkill skill, Player player) {
+        if (skill == null) return;
+        try {
+            skill.onQuit(player);
+        } catch (Exception ex) {
+            com.skillcore.SkillCorePlugin.getInstance().getLogger()
+                    .warning("Weapon skill quit cleanup error [" + skill.getType() + "]: " + ex);
+        }
+    }
+
+    /**
+     * 对一把武器的左右技能各执行一次（左右共用同一实例时只执行一次）。
+     * <p>
+     * 被动回调（onHit / onKill / onDamaged）不属于某一侧点击，
+     * 左右技能都应该有机会响应。
+     */
+    private static void forEachSkill(WeaponRegistry.Entry entry, java.util.function.Consumer<WeaponSkill> action) {
+        if (entry == null || action == null) return;
+        WeaponSkill right = entry.skill();
+        if (right != null) action.accept(right);
+        WeaponSkill left = entry.leftSkill();
+        if (left != null && left != right) action.accept(left);
     }
 
     /**
      * 受击时通知武器技能（反伤类）。
      */
     public void notifyDamaged(Player player, LivingEntity attacker, double damage) {
+        if (player == null || attacker == null || attacker.equals(player)) return;
         String weaponId = WeaponItems.getHeldWeaponId(
                 com.skillcore.SkillCorePlugin.getInstance(), player);
         if (weaponId == null) return;
-        registry.getEntry(weaponId).ifPresent(entry -> {
-            WeaponSkill skill = entry.resolve(false);
-            if (skill != null) {
-                WeaponContext ctx = new WeaponContext(
-                        player, entry.weapon(), attacker,
-                        attacker.getLocation(),
-                        player.getInventory().getItemInMainHand(),
-                        false, false);
-                skill.onDamaged(ctx, attacker, damage);
-            }
-        });
+        registry.getEntry(weaponId).ifPresent(entry -> forEachSkill(entry, skill -> {
+            WeaponContext ctx = new WeaponContext(
+                    player, entry.weapon(), attacker,
+                    attacker.getLocation(),
+                    player.getInventory().getItemInMainHand(),
+                    false, false);
+            skill.onDamaged(ctx, attacker, damage);
+        }));
     }
 
     /**
@@ -330,40 +425,36 @@ public final class WeaponManager {
      * 调用方（CombatListener）会跳过技能伤害，避免技能命中重复触发。
      */
     public void notifyHit(Player player, LivingEntity victim, double damage) {
+        if (player == null || victim == null || !victim.isValid()) return;
         String weaponId = WeaponItems.getHeldWeaponId(
                 com.skillcore.SkillCorePlugin.getInstance(), player);
         if (weaponId == null) return;
-        registry.getEntry(weaponId).ifPresent(entry -> {
-            WeaponSkill skill = entry.skill() != null ? entry.skill() : entry.leftSkill();
-            if (skill != null) {
-                WeaponContext ctx = new WeaponContext(
-                        player, entry.weapon(), victim,
-                        victim.getLocation(),
-                        player.getInventory().getItemInMainHand(),
-                        false, false);
-                skill.onHit(ctx, victim, damage);
-            }
-        });
+        registry.getEntry(weaponId).ifPresent(entry -> forEachSkill(entry, skill -> {
+            WeaponContext ctx = new WeaponContext(
+                    player, entry.weapon(), victim,
+                    victim.getLocation(),
+                    player.getInventory().getItemInMainHand(),
+                    false, false);
+            skill.onHit(ctx, victim, damage);
+        }));
     }
 
     /**
      * 击杀时通知武器技能。
      */
     public void notifyKill(Player player, LivingEntity victim) {
+        if (player == null || victim == null) return;
         String weaponId = WeaponItems.getHeldWeaponId(
                 com.skillcore.SkillCorePlugin.getInstance(), player);
         if (weaponId == null) return;
-        registry.getEntry(weaponId).ifPresent(entry -> {
-            WeaponSkill skill = entry.skill() != null ? entry.skill() : entry.leftSkill();
-            if (skill != null) {
-                WeaponContext ctx = new WeaponContext(
-                        player, entry.weapon(), victim,
-                        victim.getLocation(),
-                        player.getInventory().getItemInMainHand(),
-                        false, false);
-                skill.onKill(ctx, victim);
-            }
-        });
+        registry.getEntry(weaponId).ifPresent(entry -> forEachSkill(entry, skill -> {
+            WeaponContext ctx = new WeaponContext(
+                    player, entry.weapon(), victim,
+                    victim.getLocation(),
+                    player.getInventory().getItemInMainHand(),
+                    false, false);
+            skill.onKill(ctx, victim);
+        }));
     }
 
     /**
@@ -379,10 +470,14 @@ public final class WeaponManager {
      * 发放武器给玩家（lore 已填入当前数值）。
      */
     public ItemStack giveWeapon(Player player, String weaponId) {
+        if (player == null) return null;
         SkillWeapon weapon = registry.get(weaponId);
         if (weapon == null) return null;
         ItemStack item = weapon.toItemStack();
-        player.getInventory().addItem(item);
+        // 背包满时把剩余物品掉落在脚下，避免“显示发放成功但物品消失”
+        for (ItemStack leftover : player.getInventory().addItem(item).values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+        }
         return item;
     }
 
@@ -397,16 +492,17 @@ public final class WeaponManager {
         if (weapon == null) return 0;
         var plugin = com.skillcore.SkillCorePlugin.getInstance();
         int updated = 0;
+        // PlayerInventory#getContents() 通常已包含盔甲槽，用身份集合去重避免同一物品刷两次
+        java.util.Set<ItemStack> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (ItemStack item : player.getInventory().getContents()) {
-            if (item == null) continue;
+            if (item == null || !seen.add(item)) continue;
             String id = WeaponItems.getWeaponId(plugin, item);
             if (id != null && id.equalsIgnoreCase(weaponId)) {
                 if (WeaponItems.updateLore(item, weapon)) updated++;
             }
         }
-        // 盔甲等
         for (ItemStack item : player.getInventory().getArmorContents()) {
-            if (item == null) continue;
+            if (item == null || !seen.add(item)) continue;
             String id = WeaponItems.getWeaponId(plugin, item);
             if (id != null && id.equalsIgnoreCase(weaponId)) {
                 if (WeaponItems.updateLore(item, weapon)) updated++;

@@ -39,12 +39,17 @@ public final class TargetFilter {
 
         Set<String> blocked = new HashSet<>();
         for (String world : config.getStringList("combat.pvp-blocked-worlds")) {
-            blocked.add(world.toLowerCase(Locale.ROOT));
+            addWorld(blocked, world);
         }
         for (String world : config.getStringList("target-filter.pvp-blocked-worlds")) {
-            blocked.add(world.toLowerCase(Locale.ROOT));
+            addWorld(blocked, world);
         }
         pvpBlockedWorlds = Set.copyOf(blocked);
+    }
+
+    private static void addWorld(Set<String> target, String world) {
+        if (world == null || world.isBlank()) return;
+        target.add(world.trim().toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -89,10 +94,15 @@ public final class TargetFilter {
 
     /**
      * 过滤掉应忽略的目标。
+     * <p>
+     * 始终返回可修改的 {@link ArrayList}（调用方常会再 {@code remove} 自己/中心目标，
+     * 返回 {@code List.of()} 之类的不可变列表会抛 UnsupportedOperationException）。
      */
     public static List<LivingEntity> filter(LivingEntity attacker, List<LivingEntity> input) {
-        if (input == null || input.isEmpty()) return List.of();
-        List<LivingEntity> out = new ArrayList<>(input.size());
+        List<LivingEntity> out = new ArrayList<>();
+        if (input == null || input.isEmpty()) {
+            return out;
+        }
         for (LivingEntity e : input) {
             if (!shouldIgnoreTarget(attacker, e)) {
                 out.add(e);

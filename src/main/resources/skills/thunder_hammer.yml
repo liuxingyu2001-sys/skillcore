@@ -7,8 +7,8 @@ right-skill: CONTROL_STRIKE
 left-skill: SWEEP
 lore:
   - "&7右键: 眩晕打击"
-  - "&7左键: 横扫"
-  - "&8冷却: {cooldown}s"
+  - "&7左键: 横扫（主目标满伤 + 周围溅射）"
+  - "&8冷却: 右 {cooldown-right}s &7/ 左 {cooldown-left}s"
   - "&c伤害: {damage}  眩晕: {stun-ticks}t"
   - "&7AOE: {aoe}  溅射: {aoe-ratio}%"
 stats:
@@ -17,8 +17,9 @@ stats:
   critical-multiplier: 2.0
   stun-duration-ticks: 30
   knockback: 0.6
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
   cooldown: 6.0
+  cooldown-left: 3.0
   range: 5.5
   aoe-radius: 3.0
   aoe-damage-ratio: 0.6

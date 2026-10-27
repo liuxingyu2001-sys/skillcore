@@ -39,6 +39,8 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
     }
 
     private final Map<UUID, SlamState> slamming = new ConcurrentHashMap<>();
+    /** 右键小跳的逐 tick 清理任务（按玩家记录，退出 / 重载时可取消）。 */
+    private final Map<UUID, BukkitTask> hopTasks = new ConcurrentHashMap<>();
 
     public StormHammerSkill() {
         super("STORM_HAMMER");
@@ -50,7 +52,10 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
 
     @Override
     public boolean canUse(WeaponContext ctx) {
-        return ctx != null && ctx.player() != null && ctx.player().isOnline() && !ctx.player().isDead();
+        return ctx != null && ctx.player() != null && ctx.player().isOnline()
+                && !ctx.player().isDead()
+                // 砸地过程中不允许再次释放：否则会白扣冷却但不产生任何效果
+                && !slamming.containsKey(ctx.player().getUniqueId());
     }
 
     // ------------------------------------------------------------------
@@ -76,12 +81,18 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
         // 位移后若干 tick 持续清零移动类检测 VL，并附带风之拖尾
         SkillCorePlugin plugin = SkillCorePlugin.getInstance();
         if (plugin != null) {
-            new BukkitRunnable() {
+            UUID id = player.getUniqueId();
+            BukkitTask old = hopTasks.remove(id);
+            if (old != null) {
+                old.cancel();
+            }
+            BukkitTask task = new BukkitRunnable() {
                 int ticks = 0;
 
                 @Override
                 public void run() {
-                    if (!player.isOnline() || ++ticks > 8) {
+                    if (!player.isOnline() || player.isDead() || ++ticks > 8) {
+                        hopTasks.remove(id, this);
                         cancel();
                         return;
                     }
@@ -89,6 +100,7 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
                     StormHammerFx.hopTrail(player.getLocation());
                 }
             }.runTaskTimer(plugin, 1L, 1L);
+            hopTasks.put(id, task);
         }
     }
 
@@ -163,10 +175,13 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
         var targets = TargetFilter.filter(player,
                 AreaUtils.getSphere(center, stats.aoeRadius(),
                         e -> TargetFilter.isAttackable(player, e)));
+        // 砸地 AOE 是技能范围伤害，走 aoe-damage-ratio 溅射（默认 100%），
+        // 不能直接调用 ctx.damage（那是“全额单体伤害”，会让每把技能的 AOE 都变成满伤）。
+        double ratio = stats.aoeDamageRatio() > 0 ? stats.aoeDamageRatio() : 1.0;
         for (LivingEntity target : targets) {
-            ctx.damage(target);
+            ctx.damageCustom(target, stats.damage() * ratio);
             DisplacementUtils.knockbackFrom(target, player, stats.knockbackStrength(), 0.35);
-            // 风爆：把周围敌人向上弹飞
+            // 风爆：把周围敌人向上弹飞（在击退结果上叠加竖直速度）
             if (stats.slamUppercutVelocity() > 0) {
                 Vector v = target.getVelocity();
                 target.setVelocity(v.setY(stats.slamUppercutVelocity()));
@@ -181,9 +196,10 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
         StormHammerFx.impact(stats.aoeRadius()).play(center);
 
         // 落地瞬间把手中战锤放大显示在冲击中心，作为「锤击」具象
+        // （技能正拿着这把武器，直接复制一份给显示物，避免显示物与主手物品共享实例）
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (held.getType() != Material.AIR) {
-            Effects.display(held, 1.8f, 24).play(center);
+        if (held != null && held.getType() != Material.AIR) {
+            Effects.display(held.clone(), 1.8f, 24).play(center);
         }
     }
 
@@ -200,5 +216,26 @@ public final class StormHammerSkill extends AbstractWeaponSkill {
             cancel(state);
         }
         slamming.clear();
+        for (BukkitTask task : hopTasks.values()) {
+            if (task != null) {
+                task.cancel();
+            }
+        }
+        hopTasks.clear();
+    }
+
+    /** 玩家退出时立刻取消砸地与小跳任务（不触发落地伤害）。 */
+    @Override
+    public void onQuit(Player player) {
+        if (player == null) return;
+        UUID id = player.getUniqueId();
+        SlamState state = slamming.remove(id);
+        if (state != null) {
+            cancel(state);
+        }
+        BukkitTask hop = hopTasks.remove(id);
+        if (hop != null) {
+            hop.cancel();
+        }
     }
 }
