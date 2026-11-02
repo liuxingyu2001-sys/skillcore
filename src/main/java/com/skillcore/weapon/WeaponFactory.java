@@ -6,6 +6,7 @@ import com.skillcore.weapon.skills.BlinkBurstSkill;
 import com.skillcore.weapon.skills.ChargeSkill;
 import com.skillcore.weapon.skills.ControlStrikeSkill;
 import com.skillcore.weapon.skills.DashDamageSkill;
+import com.skillcore.weapon.skills.EarthSpikeStaffSkill;
 import com.skillcore.weapon.skills.LifestealStrikeSkill;
 import com.skillcore.weapon.skills.PercentStrikeSkill;
 import com.skillcore.weapon.skills.StrikeSkill;
@@ -64,6 +65,9 @@ public final class WeaponFactory {
         registerSkill("THORNS", w -> new ThornsSkill());
         registerSkill("SUNFIRE_BLADE", w -> new SunfireBladeSkill());
         registerSkill("SUNFIRE_SWORD", w -> new SunfireBladeSkill());
+        registerSkill("EARTH_SPIKE", w -> new EarthSpikeStaffSkill());
+        registerSkill("EARTHSPIKE", w -> new EarthSpikeStaffSkill());
+        registerSkill("EARTH_STAFF", w -> new EarthSpikeStaffSkill());
     }
 
     /**

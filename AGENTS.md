@@ -6,9 +6,9 @@ Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放�
 - 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.4.jar`）
 - `groupId=com.skillcore`，`artifactId=skillcore`，主类 `com.skillcore.SkillCorePlugin`
 - 代码注释、配置注释均为中文，保持中文风格
-- 已在 Paper 26.2 服务端实机验证加载（启动自动注册 12 个武器技能类 + 8 把武器 + 2 套盔甲）
+- 已在 Paper 26.2 服务端实机验证加载（启动自动注册 13 个武器技能类 + 9 把武器 + 2 套盔甲）
 
-## 内置内容一览（8 把武器 / 12 个武器技能 / 2 套盔甲）
+## 内置内容一览（9 把武器 / 13 个武器技能 / 2 套盔甲）
 
 | 武器 id（`skills/<id>.yml`） | 显示名 | 右键技能 | 左键技能 |
 | --- | --- | --- | --- |
@@ -20,6 +20,7 @@ Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放�
 | `storm_warhammer` | 风暴战锤 | `STORM_HAMMER` | — |
 | `sunfire_blade` | 日炎之剑 | `SUNFIRE_BLADE` | — |
 | `thunder_hammer` | 雷霆重击 | `CONTROL_STRIKE` | `SWEEP` |
+| `earth_staff` | 地刺法杖 | `EARTH_SPIKE` | — |
 
 - `DASH_DAMAGE`（别名 `DASH`）与 `THORNS` 也有实现且会注册，但当前没有武器文件引用；要用就在某把武器的 `right-skill`/`left-skill` 填上
 - 同一技能实现可挂到多把武器上，差异（伤害/冷却/范围）全落在各自的 `skills/*.yml`
@@ -118,6 +119,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - 彩色尘：`dust(Color, size, count[, spread])`
   - 闪电：`bolt`（沿朝向）/ `boltBetween` / `skyStrikes`（天雷）/ `skyStrikesDust`（彩色天雷）
   - 动画形状：`expandingRing`（扩散环）/ `groundCracks`（地面裂纹）/ `orbit`（环绕螺旋）/ `groundShatter`（地面碎裂：方块碎屑粒子 + PacketEvents 方块裂纹动画后恢复）
+  - 召唤物：`BlockDisplay`（尖滴石地刺，见 `EarthSpikeStaffSkill`）按 tick 推进「破土 → 停留 → 缩回」，展示实体必须 `setPersistent(false)` + 打 tag，并在 `cleanup()` / `onQuit()` 里回收与取消任务
   - 音效：`sound/soundRadius`
   - 显示物：`display(ItemStack,...)` / `model(craftEngineModel,...)` / `modelFacing(...)`（内部 `DisplayEffect`，ItemDisplay + 平滑插值 + 自动移除）
   - 组合：`parallel/sequence/delayed/at`，或 `fx.andThen(next).delayed(ticks)`

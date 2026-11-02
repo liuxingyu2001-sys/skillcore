@@ -1,0 +1,48 @@
+# 地刺法杖 — 右键召唤一排地刺穿刺敌人（击飞 + 减速），被动吸血
+id: earth_staff
+display-name: "&2地刺法杖"
+description: "&7右键召唤地刺穿刺敌人，被动吸血"
+material: BLAZE_ROD
+craftengine_model: ""
+right-skill: EARTH_SPIKE
+right-trigger: RIGHT_CLICK
+left-trigger: LEFT_CLICK
+glow: true
+custom-model-data: 0
+lore:
+  - "&7右键: 召唤一排地刺穿刺敌人"
+  - "&8地刺: {hits} 根 · 半径 {aoe} 格 · 距离 {range} 格"
+  - "&8冷却: {cooldown-right}s"
+  - "&c伤害: {damage}  &a吸血: {lifesteal}%"
+  - "&7暴击: {crit}% x{crit-multi}  穿透: {pen}%"
+stats:
+  # ---- 伤害（单根地刺伤害 = damage × aoe-damage-ratio） ----
+  damage: 9.0
+  damage-scaling: 1.2
+  critical-chance: 0.15
+  critical-multiplier: 1.6
+  armor-penetration: 0.10
+  # 被动吸血：普攻（onHit）与地刺技能伤害都按该比例回血
+  lifesteal: 0.15
+  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
+  cooldown: 7.0
+  # ---- 地刺形态 ----
+  hit-count: 7            # 地刺根数（1~20），均匀铺在「脚下 → 准星落点」之间
+  hit-interval-ticks: 1   # 相邻地刺破土间隔（tick，0 = 同时破土）
+  range: 9.0              # 地刺铺开的最大距离（格）
+  aim-range: 12.0         # 准星射线距离（格），决定落点最远能瞄多远
+  aoe-radius: 1.6         # 单根地刺的伤害半径（格）
+  aoe-damage-ratio: 1.0   # 单根伤害比例（1.0 = 满额；每一轮施法同一目标只吃一次）
+  knockback: 0.35         # 命中水平击退强度
+  spike-uppercut-velocity: 0.55  # 命中向上击飞速度（0 = 不击飞）
+  slow-duration-ticks: 30 # 命中减速持续（tick，0 = 不减速）
+  slow-amplifier: 0       # 减速等级：0 = 缓慢 I
+  # ---- 表现（关闭 effects 时只保留伤害判定） ----
+  spike-rise-ticks: 2     # 破土动画时长（tick）
+  spike-hold-ticks: 5     # 地刺停留时长（tick）
+  spike-fall-ticks: 4     # 缩回动画时长（tick）
+  spike-scale: 2.2        # 地刺方块显示缩放
+  particle: CRIT          # 命中粒子
+  sound: BLOCK_POINTED_DRIPSTONE_BREAK  # 破土/命中音效
+  sound-volume: 1.0
+  sound-pitch: 0.8

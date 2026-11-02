@@ -87,6 +87,18 @@ public final class WeaponStats {
     private double hitIntervalTicks = 4;
     private int maxTargets = 1;
 
+    // ---- 地刺（召唤类技能） ----
+    /** 破土动画时长（tick） */
+    private int spikeRiseTicks = 2;
+    /** 地刺停留时长（tick） */
+    private int spikeHoldTicks = 5;
+    /** 缩回动画时长（tick） */
+    private int spikeFallTicks = 4;
+    /** 命中上挑速度（格/tick，0 = 不击飞） */
+    private double spikeUppercutVelocity = 0.55;
+    /** 地刺方块显示缩放 */
+    private float spikeScale = 2.2f;
+
     // ---- 特效 ----
     private String particle = "CRIT";
     private String sound = "ENTITY_PLAYER_ATTACK_STRONG";
@@ -231,6 +243,12 @@ public final class WeaponStats {
     public double hitIntervalTicks() { return hitIntervalTicks; }
     public int maxTargets() { return maxTargets; }
 
+    public int spikeRiseTicks() { return spikeRiseTicks; }
+    public int spikeHoldTicks() { return spikeHoldTicks; }
+    public int spikeFallTicks() { return spikeFallTicks; }
+    public double spikeUppercutVelocity() { return spikeUppercutVelocity; }
+    public float spikeScale() { return spikeScale; }
+
     public String particle() { return particle; }
     public String sound() { return sound; }
     public float soundVolume() { return soundVolume; }
@@ -353,6 +371,12 @@ public final class WeaponStats {
         stats.hitIntervalTicks = section.getDouble("hit-interval-ticks", stats.hitIntervalTicks);
         stats.maxTargets = section.getInt("max-targets", stats.maxTargets);
 
+        stats.spikeRiseTicks = section.getInt("spike-rise-ticks", stats.spikeRiseTicks);
+        stats.spikeHoldTicks = section.getInt("spike-hold-ticks", stats.spikeHoldTicks);
+        stats.spikeFallTicks = section.getInt("spike-fall-ticks", stats.spikeFallTicks);
+        stats.spikeUppercutVelocity = section.getDouble("spike-uppercut-velocity", stats.spikeUppercutVelocity);
+        stats.spikeScale = (float) section.getDouble("spike-scale", stats.spikeScale);
+
         stats.particle = section.getString("particle", stats.particle);
         stats.sound = section.getString("sound", stats.sound);
         stats.soundVolume = (float) section.getDouble("sound-volume", stats.soundVolume);
@@ -439,6 +463,12 @@ public final class WeaponStats {
         hitIntervalTicks = clamp(hitIntervalTicks, 0.0, 200.0);
         maxTargets = clamp(maxTargets, 1, 50);
 
+        spikeRiseTicks = clamp(spikeRiseTicks, 1, 20);
+        spikeHoldTicks = clamp(spikeHoldTicks, 0, 100);
+        spikeFallTicks = clamp(spikeFallTicks, 1, 20);
+        spikeUppercutVelocity = clamp(spikeUppercutVelocity, -5.0, 5.0);
+        spikeScale = (float) clamp(spikeScale, 0.2, 8.0);
+
         soundVolume = (float) clamp(soundVolume, 0.0, 10.0);
         soundPitch = (float) clamp(soundPitch, 0.5, 2.0);
     }
@@ -514,6 +544,11 @@ public final class WeaponStats {
         s.hitCount = hitCount;
         s.hitIntervalTicks = hitIntervalTicks;
         s.maxTargets = maxTargets;
+        s.spikeRiseTicks = spikeRiseTicks;
+        s.spikeHoldTicks = spikeHoldTicks;
+        s.spikeFallTicks = spikeFallTicks;
+        s.spikeUppercutVelocity = spikeUppercutVelocity;
+        s.spikeScale = spikeScale;
         s.particle = particle;
         s.sound = sound;
         s.soundVolume = soundVolume;
