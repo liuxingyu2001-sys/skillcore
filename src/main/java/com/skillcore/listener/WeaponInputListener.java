@@ -12,6 +12,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -52,6 +53,14 @@ public final class WeaponInputListener implements Listener {
     // ------------------------------------------------------------------
     // 左键 / 右键
     // ------------------------------------------------------------------
+
+    /**
+     * 玩家上线时修复旧版 glow 物品（隐藏附魔 + HIDE_ENCHANTS 会把附魔行全藏掉）。
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        weaponManager.migrateLegacyGlowItems(event.getPlayer());
+    }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent event) {

@@ -58,6 +58,9 @@ public final class SkillCorePlugin extends JavaPlugin {
         weaponManager.setDebug(configManager.isDebug());
         registerWeaponSkills();
         int weaponCount = configManager.loadWeapons(weaponFactory, weaponRegistry);
+        // 历史 bug 修复：旧版 glow 物品带着「隐藏附魔 + HIDE_ENCHANTS」，会把附魔行全部藏掉，
+        // 启动时对在线玩家背包重建一次（玩家上线时 WeaponInputListener 也会再跑一遍）
+        weaponManager.migrateLegacyGlowItemsAll();
 
         // 盔甲套装：armor/ 目录底层框架（集齐整套后被动加成生效）
         armorFactory = new com.skillcore.armor.ArmorFactory();
@@ -85,6 +88,12 @@ public final class SkillCorePlugin extends JavaPlugin {
         }
 
         registerPlaceholders();
+
+        // mcMMO 软依赖：手持技能武器时屏蔽它的动作栏提示（未安装则空操作）
+        com.skillcore.hook.McMMOHook.init(this);
+        // 兜底：若 mcMMO 因加载顺序在本插件之后才 enable，下一 tick 再试一次挂接
+        getServer().getScheduler().runTaskLater(this,
+                () -> com.skillcore.hook.McMMOHook.init(this), 1L);
 
         testDummyManager = new com.skillcore.dummy.TestDummyManager(this);
         getServer().getPluginManager().registerEvents(testDummyManager, this);
@@ -175,6 +184,8 @@ public final class SkillCorePlugin extends JavaPlugin {
         com.skillcore.utils.VulcanHelper.reset();
         com.skillcore.hook.CraftEngineHook.reset();
         com.skillcore.hook.PacketEventsHook.reset();
+        // 注销 mcMMO 动态事件监听，避免热重载后旧实例还挂在事件总线上
+        com.skillcore.hook.McMMOHook.reset();
         if (testDummyManager != null) {
             testDummyManager.shutdown();
         }

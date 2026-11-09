@@ -3,12 +3,14 @@ package com.skillcore.weapon;
 import com.skillcore.weapon.annotation.WeaponSkillInfo;
 import com.skillcore.weapon.skills.BladeDashSkill;
 import com.skillcore.weapon.skills.BlinkBurstSkill;
+import com.skillcore.weapon.skills.BloodMoonThrowSkill;
 import com.skillcore.weapon.skills.ChargeSkill;
 import com.skillcore.weapon.skills.ControlStrikeSkill;
 import com.skillcore.weapon.skills.DashDamageSkill;
 import com.skillcore.weapon.skills.EarthSpikeStaffSkill;
 import com.skillcore.weapon.skills.LifestealStrikeSkill;
 import com.skillcore.weapon.skills.PercentStrikeSkill;
+import com.skillcore.weapon.skills.SoulHarvestSkill;
 import com.skillcore.weapon.skills.StrikeSkill;
 import com.skillcore.weapon.skills.SunfireBladeSkill;
 import com.skillcore.weapon.skills.SweepSkill;
@@ -68,6 +70,11 @@ public final class WeaponFactory {
         registerSkill("EARTH_SPIKE", w -> new EarthSpikeStaffSkill());
         registerSkill("EARTHSPIKE", w -> new EarthSpikeStaffSkill());
         registerSkill("EARTH_STAFF", w -> new EarthSpikeStaffSkill());
+        registerSkill("BLOOD_MOON_THROW", w -> new BloodMoonThrowSkill());
+        registerSkill("BLOODMOON", w -> new BloodMoonThrowSkill());
+        registerSkill("SCYTHE_THROW", w -> new BloodMoonThrowSkill());
+        registerSkill("SOUL_HARVEST", w -> new SoulHarvestSkill());
+        registerSkill("HARVEST", w -> new SoulHarvestSkill());
     }
 
     /**

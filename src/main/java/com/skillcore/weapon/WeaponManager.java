@@ -3,7 +3,6 @@ package com.skillcore.weapon;
 import com.skillcore.weapon.SkillTrigger;
 import com.skillcore.utils.CooldownUtils;
 import com.skillcore.utils.MessageUtils;
-import com.skillcore.utils.SoundUtils;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -263,8 +262,11 @@ public final class WeaponManager {
     }
 
     /**
-     * 冷却提示（动作栏 + 音效），按 {@code cooldown.prompt-interval-ms} 节流，
-     * 避免冷却中狂按导致提示刷屏 / 音效轰炸。
+     * 冷却提示（纯动作栏文本，不发音效），按 {@code cooldown.prompt-interval-ms} 节流，
+     * 避免冷却中狂按导致提示刷屏。
+     * <p>
+     * 右键因冷却失败时不再播放 UI 点击音：反复「咔哒」很吵，
+     * 还会和技能音效/战斗音效叠在一起。
      */
     private void promptCooldown(Player player, String cdKey) {
         long now = System.currentTimeMillis();
@@ -276,7 +278,6 @@ public final class WeaponManager {
         double remain = CooldownUtils.getRemaining(player.getUniqueId(), cdKey);
         MessageUtils.sendActionBar(player, "&c冷却中 &f"
                 + String.format(java.util.Locale.ROOT, "%.1f", remain) + "s");
-        SoundUtils.cooldown(player);
     }
 
     private int promptIntervalMs() {
@@ -526,6 +527,40 @@ public final class WeaponManager {
         }
         player.updateInventory();
         return updated;
+    }
+
+    /**
+     * 修复历史 glow 写法留下的物品：旧版用「隐藏附魔 海之眷顾 I + HIDE_ENCHANTS」实现发光，
+     * 会把物品上所有附魔行一起藏掉（「不显示任何附魔」）。重建一次物品即可清掉遗留并恢复显示。
+     *
+     * @return 修复的物品数量
+     */
+    public int migrateLegacyGlowItems(Player player) {
+        if (player == null) return 0;
+        var plugin = com.skillcore.SkillCorePlugin.getInstance();
+        int fixed = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (!WeaponItems.isLegacyGlowItem(item)) continue;
+            String id = WeaponItems.getWeaponId(plugin, item);
+            if (id == null) continue;
+            SkillWeapon weapon = registry.get(id);
+            if (weapon != null && WeaponItems.updateLore(item, weapon)) {
+                fixed++;
+            }
+        }
+        if (fixed > 0) {
+            player.updateInventory();
+        }
+        return fixed;
+    }
+
+    /** 对所有在线玩家跑一次历史 glow 修复（插件启用时调用，玩家上线时也会各跑一次）。 */
+    public int migrateLegacyGlowItemsAll() {
+        int total = 0;
+        for (Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+            total += migrateLegacyGlowItems(player);
+        }
+        return total;
     }
 
     /**

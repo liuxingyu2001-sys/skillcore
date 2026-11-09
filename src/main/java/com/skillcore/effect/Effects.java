@@ -80,6 +80,19 @@ public final class Effects {
         };
     }
 
+    /**
+     * 面向施法方向的竖直弧形刀光（不闭合），{@code arcDeg} 为张开角度。
+     * <p>
+     * 镰刀/剑气类技能画新月斩击用；比 {@link #ringFacing} 少了半圈，不会画成「光圈」。
+     */
+    public static SkillEffect arcFacing(Particle particle, double radius, double arcDeg, int points) {
+        return context -> {
+            if (context.valid()) {
+                ParticleUtils.facingArc(context.location(), context.direction(), radius, arcDeg, particle, points);
+            }
+        };
+    }
+
     /** 球壳。 */
     public static SkillEffect sphere(Particle particle, double radius, int points) {
         return context -> {

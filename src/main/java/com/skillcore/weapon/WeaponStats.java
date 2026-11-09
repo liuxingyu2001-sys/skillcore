@@ -98,6 +98,48 @@ public final class WeaponStats {
     private double spikeUppercutVelocity = 0.55;
     /** 地刺方块显示缩放 */
     private float spikeScale = 2.2f;
+    /** 地刺弹射物每 tick 飞行速度（格/tick） */
+    private double spikeProjectileSpeed = 1.4;
+    /** 雷霆召唤的落雷道数 */
+    private int lightningStrikes = 3;
+    /** 雷光标记（发光）持续 tick；同时作为「雷力」加持下一发地刺的窗口 */
+    private int lightningGlowTicks = 100;
+    /** 落雷伤害倍率（伤害 = damage × 该值） */
+    private double lightningDamageMultiplier = 1.2;
+
+    // ---- 镰刀：回旋投掷（BLOOD_MOON_THROW） ----
+    /** 去程飞行速度（格/tick） */
+    private double throwSpeed = 1.1;
+    /** 去程最大飞行距离（格），到达后折返 */
+    private double throwRange = 18.0;
+    /** 回程飞行速度（格/tick） */
+    private double returnSpeed = 1.5;
+    /** 锁敌转向速度（度/tick，越大越会拐弯追人） */
+    private double turnRate = 12.0;
+    /** 去程单次命中伤害 = damage × 该倍率 */
+    private double throwDamageRatio = 0.9;
+    /** 回程单次命中伤害 = damage × 该倍率 */
+    private double returnDamageRatio = 0.6;
+    /** 血月印记持续 tick（0 = 不挂印记） */
+    private int markDurationTicks = 100;
+    /** 普攻挂印记概率（0~1，0 = 普攻不挂印记） */
+    private double markChance = 0.3;
+
+    // ---- 镰刀：扇形收割（SOUL_HARVEST） ----
+    /** 扇形角度（度） */
+    private double sweepAngle = 130.0;
+    /** 扇形半径（格） */
+    private double sweepRange = 4.8;
+    /** 处决阈值（目标剩余生命比例，0 = 不处决） */
+    private double executeThreshold = 0.25;
+    /** 处决额外伤害（目标最大生命比例） */
+    private double executeDamagePercent = 0.08;
+    /** 命中带印记目标时的额外伤害倍率（damage × 该值） */
+    private double markBonusRatio = 0.35;
+
+    // ---- 物品普攻属性 ----
+    /** 写入物品的 ATTACK_DAMAGE 修饰符（0 = 不改原版普攻；用于锄头/法杖类底物） */
+    private double attackDamage = 0.0;
 
     // ---- 特效 ----
     private String particle = "CRIT";
@@ -248,6 +290,25 @@ public final class WeaponStats {
     public int spikeFallTicks() { return spikeFallTicks; }
     public double spikeUppercutVelocity() { return spikeUppercutVelocity; }
     public float spikeScale() { return spikeScale; }
+    public double spikeProjectileSpeed() { return spikeProjectileSpeed; }
+    public int lightningStrikes() { return lightningStrikes; }
+    public int lightningGlowTicks() { return lightningGlowTicks; }
+    public double lightningDamageMultiplier() { return lightningDamageMultiplier; }
+
+    public double throwSpeed() { return throwSpeed; }
+    public double throwRange() { return throwRange; }
+    public double returnSpeed() { return returnSpeed; }
+    public double turnRate() { return turnRate; }
+    public double throwDamageRatio() { return throwDamageRatio; }
+    public double returnDamageRatio() { return returnDamageRatio; }
+    public int markDurationTicks() { return markDurationTicks; }
+    public double markChance() { return markChance; }
+    public double sweepAngle() { return sweepAngle; }
+    public double sweepRange() { return sweepRange; }
+    public double executeThreshold() { return executeThreshold; }
+    public double executeDamagePercent() { return executeDamagePercent; }
+    public double markBonusRatio() { return markBonusRatio; }
+    public double attackDamage() { return attackDamage; }
 
     public String particle() { return particle; }
     public String sound() { return sound; }
@@ -376,6 +437,25 @@ public final class WeaponStats {
         stats.spikeFallTicks = section.getInt("spike-fall-ticks", stats.spikeFallTicks);
         stats.spikeUppercutVelocity = section.getDouble("spike-uppercut-velocity", stats.spikeUppercutVelocity);
         stats.spikeScale = (float) section.getDouble("spike-scale", stats.spikeScale);
+        stats.spikeProjectileSpeed = section.getDouble("spike-projectile-speed", stats.spikeProjectileSpeed);
+        stats.lightningStrikes = section.getInt("lightning-strikes", stats.lightningStrikes);
+        stats.lightningGlowTicks = section.getInt("lightning-glow-ticks", stats.lightningGlowTicks);
+        stats.lightningDamageMultiplier = section.getDouble("lightning-damage-multiplier", stats.lightningDamageMultiplier);
+
+        stats.throwSpeed = section.getDouble("throw-speed", stats.throwSpeed);
+        stats.throwRange = section.getDouble("throw-range", stats.throwRange);
+        stats.returnSpeed = section.getDouble("return-speed", stats.returnSpeed);
+        stats.turnRate = section.getDouble("turn-rate", stats.turnRate);
+        stats.throwDamageRatio = section.getDouble("throw-damage-ratio", stats.throwDamageRatio);
+        stats.returnDamageRatio = section.getDouble("return-damage-ratio", stats.returnDamageRatio);
+        stats.markDurationTicks = section.getInt("mark-duration-ticks", stats.markDurationTicks);
+        stats.markChance = section.getDouble("mark-chance", stats.markChance);
+        stats.sweepAngle = section.getDouble("sweep-angle", stats.sweepAngle);
+        stats.sweepRange = section.getDouble("sweep-range", stats.sweepRange);
+        stats.executeThreshold = section.getDouble("execute-threshold", stats.executeThreshold);
+        stats.executeDamagePercent = section.getDouble("execute-damage-percent", stats.executeDamagePercent);
+        stats.markBonusRatio = section.getDouble("mark-bonus-ratio", stats.markBonusRatio);
+        stats.attackDamage = section.getDouble("attack-damage", stats.attackDamage);
 
         stats.particle = section.getString("particle", stats.particle);
         stats.sound = section.getString("sound", stats.sound);
@@ -468,6 +548,25 @@ public final class WeaponStats {
         spikeFallTicks = clamp(spikeFallTicks, 1, 20);
         spikeUppercutVelocity = clamp(spikeUppercutVelocity, -5.0, 5.0);
         spikeScale = (float) clamp(spikeScale, 0.2, 8.0);
+        spikeProjectileSpeed = clamp(spikeProjectileSpeed, 0.1, 10.0);
+        lightningStrikes = clamp(lightningStrikes, 1, 16);
+        lightningGlowTicks = clamp(lightningGlowTicks, 0, 20 * 60 * 10);
+        lightningDamageMultiplier = clamp(lightningDamageMultiplier, 0.0, 10.0);
+
+        throwSpeed = clamp(throwSpeed, 0.05, 10.0);
+        throwRange = clamp(throwRange, 1.0, 64.0);
+        returnSpeed = clamp(returnSpeed, 0.05, 10.0);
+        turnRate = clamp(turnRate, 0.0, 90.0);
+        throwDamageRatio = clamp(throwDamageRatio, 0.0, 10.0);
+        returnDamageRatio = clamp(returnDamageRatio, 0.0, 10.0);
+        markDurationTicks = clamp(markDurationTicks, 0, 20 * 60 * 10);
+        markChance = clamp(markChance, 0.0, 1.0);
+        sweepAngle = clamp(sweepAngle, 1.0, 360.0);
+        sweepRange = clamp(sweepRange, 0.0, 16.0);
+        executeThreshold = clamp(executeThreshold, 0.0, 1.0);
+        executeDamagePercent = clamp(executeDamagePercent, 0.0, 1.0);
+        markBonusRatio = clamp(markBonusRatio, 0.0, 10.0);
+        attackDamage = clamp(attackDamage, 0.0, 10_000.0);
 
         soundVolume = (float) clamp(soundVolume, 0.0, 10.0);
         soundPitch = (float) clamp(soundPitch, 0.5, 2.0);
@@ -549,6 +648,24 @@ public final class WeaponStats {
         s.spikeFallTicks = spikeFallTicks;
         s.spikeUppercutVelocity = spikeUppercutVelocity;
         s.spikeScale = spikeScale;
+        s.spikeProjectileSpeed = spikeProjectileSpeed;
+        s.lightningStrikes = lightningStrikes;
+        s.lightningGlowTicks = lightningGlowTicks;
+        s.lightningDamageMultiplier = lightningDamageMultiplier;
+        s.throwSpeed = throwSpeed;
+        s.throwRange = throwRange;
+        s.returnSpeed = returnSpeed;
+        s.turnRate = turnRate;
+        s.throwDamageRatio = throwDamageRatio;
+        s.returnDamageRatio = returnDamageRatio;
+        s.markDurationTicks = markDurationTicks;
+        s.markChance = markChance;
+        s.sweepAngle = sweepAngle;
+        s.sweepRange = sweepRange;
+        s.executeThreshold = executeThreshold;
+        s.executeDamagePercent = executeDamagePercent;
+        s.markBonusRatio = markBonusRatio;
+        s.attackDamage = attackDamage;
         s.particle = particle;
         s.sound = sound;
         s.soundVolume = soundVolume;

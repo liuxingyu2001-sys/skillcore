@@ -83,7 +83,16 @@ public final class WeaponLore {
 
                 // 多段
                 .replace("{hits}", String.valueOf(s.hitCount()))
-                .replace("{max-targets}", String.valueOf(s.maxTargets()));
+                .replace("{max-targets}", String.valueOf(s.maxTargets()))
+
+                // 镰刀专用
+                .replace("{attack-damage}", fmt(s.attackDamage()))
+                .replace("{throw-range}", fmt(s.throwRange()))
+                .replace("{sweep-angle}", fmt(s.sweepAngle()))
+                .replace("{sweep-range}", fmt(s.sweepRange()))
+                .replace("{execute}", fmt(s.executeThreshold() * 100))
+                .replace("{execute-damage}", fmt(s.executeDamagePercent() * 100))
+                .replace("{mark-duration}", fmt(s.markDurationTicks() / 20.0));
     }
 
     /**

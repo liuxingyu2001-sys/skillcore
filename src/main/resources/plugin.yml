@@ -5,7 +5,7 @@ api-version: '1.21'
 folia-supported: false
 authors: [SkillCore]
 description: Skill weapon plugin - skills are bound to weapons. Hold the weapon to use its skill.
-softdepend: [PlaceholderAPI, CraftEngine, packetevents]
+softdepend: [PlaceholderAPI, CraftEngine, packetevents, mcMMO]
 
 commands:
   skillcore:

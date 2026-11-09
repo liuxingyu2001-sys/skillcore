@@ -43,7 +43,7 @@ cooldown:
   message: true
   # 冷却绕过权限是否生效（false = 所有人都吃冷却，包括 OP/管理员）
   bypass-permission: false
-  # 冷却中提示（动作栏+音效）的最小间隔毫秒，避免狂按刷屏/音效轰炸
+  # 冷却中提示（仅动作栏文本，无音效）的最小间隔毫秒，避免狂按刷屏
   prompt-interval-ms: 750
 
 # Skill input binding (default trigger keys)
@@ -93,3 +93,11 @@ effects:
   display:
     teleport-duration: 3
     interpolation-duration: 2
+
+# 第三方插件集成（软依赖，未安装时自动跳过）
+integrations:
+  mcmmo:
+    # 手持技能武器时，屏蔽 mcMMO 发往动作栏的提示（mcMMO 未安装则不生效）
+    # mcMMO 会在右键拿起工具、超技能冷却、战斗涨经验时不停往动作栏写文本，
+    # 和武器技能自己的动作栏反馈抢屏；只屏蔽动作栏，聊天栏消息照常保留
+    suppress-actionbar: true

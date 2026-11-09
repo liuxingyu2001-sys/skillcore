@@ -120,6 +120,83 @@ public final class ParticleUtils {
         ring(center.clone().add(0, yOffset, 0), radius, particle, points, new Vector(0, 1, 0));
     }
 
+    // ------------------------------------------------------------------
+    // 弧形刀光（镰刀/剑气类技能用）
+    // ------------------------------------------------------------------
+
+    /**
+     * 水平弧采样点 — 角度 0° 指向 +X，逆时针增加，返回 {@code points + 1} 个点。
+     * <p>
+     * 与 {@link #ring} 的区别：只画一段弧（可做新月刀光），不是整圈。
+     */
+    public static List<Location> arcPoints(Location center, double radius, double startAngleDeg,
+                                           double endAngleDeg, int points) {
+        List<Location> out = new ArrayList<>();
+        if (center == null || center.getWorld() == null || radius <= 0
+                || !Double.isFinite(startAngleDeg) || !Double.isFinite(endAngleDeg)) {
+            return out;
+        }
+        int n = Math.max(2, Math.min(points, 512));
+        for (int i = 0; i <= n; i++) {
+            double angle = startAngleDeg + (endAngleDeg - startAngleDeg) * i / n;
+            double rad = Math.toRadians(angle);
+            out.add(center.clone().add(Math.cos(rad) * radius, 0, Math.sin(rad) * radius));
+        }
+        return out;
+    }
+
+    /**
+     * 面向朝向的竖直弧采样点（刀光主用）— 在垂直于 {@code direction} 的平面内画弧，
+     * 弧心在 center，{@code arcDeg} 为弧张开角度（度）。
+     */
+    public static List<Location> facingArcPoints(Location center, Vector direction, double radius,
+                                                 double arcDeg, int points) {
+        List<Location> out = new ArrayList<>();
+        if (center == null || center.getWorld() == null || radius <= 0
+                || !Double.isFinite(arcDeg) || arcDeg <= 0) {
+            return out;
+        }
+        Vector dir = direction == null ? new Vector(0, 0, 1) : direction.clone();
+        // 零向量/NaN 朝向会让整条弧的坐标变成无效值，统一回退为 +Z
+        if (dir.lengthSquared() < 1.0e-8) {
+            dir = new Vector(0, 0, 1);
+        }
+        dir.normalize();
+        Vector right = dir.clone().crossProduct(new Vector(0, 1, 0));
+        if (right.lengthSquared() < 1.0e-8) {
+            right = new Vector(1, 0, 0);
+        }
+        right.normalize();
+        Vector up = right.clone().crossProduct(dir).normalize();
+        double half = Math.toRadians(Math.min(arcDeg, 360.0) / 2.0);
+        int n = Math.max(2, Math.min(points, 512));
+        for (int i = 0; i <= n; i++) {
+            double angle = -half + 2 * half * i / n;
+            Vector offset = right.clone().multiply(Math.sin(angle) * radius)
+                    .add(up.clone().multiply(Math.cos(angle) * radius));
+            out.add(center.clone().add(offset));
+        }
+        return out;
+    }
+
+    /** 水平弧粒子。 */
+    public static void arc(Location center, double radius, double startAngleDeg, double endAngleDeg,
+                           Particle particle, int points) {
+        if (particle == null || !EffectSettings.particlesEnabled()) return;
+        for (Location point : arcPoints(center, radius, startAngleDeg, endAngleDeg, points)) {
+            spawn(point, particle, 1);
+        }
+    }
+
+    /** 面向朝向的竖直弧粒子（刀光）。 */
+    public static void facingArc(Location center, Vector direction, double radius, double arcDeg,
+                                 Particle particle, int points) {
+        if (particle == null || !EffectSettings.particlesEnabled()) return;
+        for (Location point : facingArcPoints(center, direction, radius, arcDeg, points)) {
+            spawn(point, particle, 1);
+        }
+    }
+
     /** 球壳。 */
     public static void sphereShell(Location center, double radius, Particle particle, int points) {
         if (!EffectSettings.particlesEnabled() || center == null || center.getWorld() == null || radius <= 0) return;

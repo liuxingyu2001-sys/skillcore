@@ -1,0 +1,74 @@
+# 血月之镰 — 镰刀类武器（NETHERITE_HOE 底物 + 普攻属性补偿），双技能：
+# 右键「血月回旋」：掷出旋转镰刀，锁敌拐弯追踪、穿透多名敌人后折返，命中烙下血月印记
+# 左键「死神收割」：130° 扇形镰斩；带印记目标引爆额外伤害；残血目标追加处决真实伤害
+# 被动：普攻概率挂印记，形成「挂印 → 引爆」的连招循环
+id: blood_moon_scythe
+display-name: "<gradient:#7A0B1E:#FF3B5C:#FFB4C0><bold>血月之镰</bold></gradient>"
+description: "&c血月镰刀 —— 右键回旋索命，左键扇形收割"
+material: NETHERITE_HOE
+craftengine_model: ""
+right-skill: BLOOD_MOON_THROW
+left-skill: SOUL_HARVEST
+right-trigger: RIGHT_CLICK
+left-trigger: LEFT_CLICK
+glow: true
+unbreakable: true
+custom-model-data: 0
+enchantments:
+  # 普攻走向原版附魔（技能伤害不吃锋利，只看 stats.damage）
+  sharpness: 5
+lore:
+  - "<dark_gray>「月蚀之夜，镰起魂落。」</dark_gray>"
+  - ""
+  - "<gradient:#FF3B5C:#FFB4C0><bold>▸ 血月回旋</bold></gradient> <gray>右键</gray>"
+  - "<gray>  掷出旋转的血月镰，锁敌拐弯追踪</gray>"
+  - "<gray>  穿透最多 <white>{max-targets}</white> 个目标后折返</gray>"
+  - "<gray>  命中的敌人被烙上「血月印记」</gray>"
+  - ""
+  - "<gradient:#FF3B5C:#FFB4C0><bold>▸ 死神收割</bold></gradient> <gray>左键</gray>"
+  - "<gray>  <white>{sweep-angle}°</white> 扇形镰斩，引爆血月印记</gray>"
+  - "<gray>  残血目标追加处决伤害</gray>"
+  - ""
+  - "<dark_gray>普攻 <red>+{attack-damage}</red> <dark_gray>· 技能伤害 <red>{damage}</red> <dark_gray>· 吸血 <red>{lifesteal}%</red>"
+  - "<dark_gray>冷却 <gray>右键 {cooldown-right}s</gray> <dark_gray>/ <gray>左键 {cooldown-left}s</gray>"
+  - "<dark_gray>处决线 <red>{execute}%</red> <dark_gray>· 印记 <red>{mark-duration}s</red> <dark_gray>· 索敌 <aqua>{aim-range}</aqua> 格"
+stats:
+  # ---- 基础 ----
+  damage: 13.0
+  damage-scaling: 1.4
+  critical-chance: 0.18
+  critical-multiplier: 1.8
+  armor-penetration: 0.15
+  lifesteal: 0.20
+  cooldown: 6.0
+  cooldown-right: 9.0
+  cooldown-left: 4.0
+  # ---- 物品普攻：锄头底物 + 7 = 8 点基础普攻（对齐下界合金剑） ----
+  attack-damage: 7.0
+  # ---- 右键「血月回旋」 ----
+  aim-range: 20.0       # 射线索敌距离（锁定失败时回退锥形辅助瞄准）
+  aim-angle: 25.0       # 锥形辅助瞄准角度（度）
+  throw-speed: 1.1      # 去程飞行速度（格/tick）
+  throw-range: 18.0     # 去程最大距离（格），到达后折返
+  return-speed: 1.5     # 回程飞行速度（格/tick）
+  turn-rate: 12.0       # 锁敌转向速度（度/tick，越大拐弯越急）
+  throw-damage-ratio: 0.9   # 去程单次命中 = damage × 0.9
+  return-damage-ratio: 0.6  # 回程单次命中 = damage × 0.6
+  max-targets: 4        # 去程最多命中目标数，达到即折返
+  mark-duration-ticks: 100  # 血月印记持续（tick，100 = 5 秒）
+  mark-chance: 0.3      # 普攻挂印记概率
+  # ---- 左键「死神收割」 ----
+  sweep-angle: 130.0    # 扇形角度（度）
+  sweep-range: 4.8      # 扇形半径（格）
+  execute-threshold: 0.25   # 处决线：目标剩余生命 ≤ 25%
+  execute-damage-percent: 0.08  # 处决额外伤害：目标最大生命 × 8%
+  mark-bonus-ratio: 0.35    # 引爆印记额外伤害 = damage × 0.35
+  knockback: 0.45       # 收割击退强度
+  slow-duration-ticks: 40   # 收割减速时长（tick）
+  slow-amplifier: 1     # 减速等级：0 = 缓慢 I，1 = 缓慢 II
+  heal: 2.0             # 击杀回血
+  # ---- 表现（effects.enabled=false 时只保留伤害与位移判定） ----
+  particle: SWEEP_ATTACK
+  sound: ENTITY_PLAYER_ATTACK_SWEEP
+  sound-volume: 1.0
+  sound-pitch: 1.1

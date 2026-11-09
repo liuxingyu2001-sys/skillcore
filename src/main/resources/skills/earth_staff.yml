@@ -1,48 +1,69 @@
-# 地刺法杖 — 右键召唤一排地刺穿刺敌人（击飞 + 减速），被动吸血
+# 地刺法杖 — BLAZE_ROD 法杖（不可破坏），两个技能都会锁定目标并造成伤害
+# 右键「地刺喷射」：锁定准星目标并射出追踪地刺，落地炸开刺环，刺穿并掀飞范围内敌人
+# Shift+右键「雷霆召唤」：锁定多个目标逐个落雷，雷光标记 + 范围伤害，并给下一发地刺注入雷力
 id: earth_staff
-display-name: "&2地刺法杖"
-description: "&7右键召唤地刺穿刺敌人，被动吸血"
+# 渐变显示名（MiniMessage；& 颜色码也可混写）
+display-name: "<gradient:#2bd67b:#a8ffce><bold>地刺法杖</bold></gradient>"
+# 描述会走 /sc info 的旧式颜色输出，这里用 & 码最稳（渐变只用于物品名与 lore）
+description: "&2地刺锁敌穿刺，雷霆索命 —— 不可破坏"
 material: BLAZE_ROD
 craftengine_model: ""
 right-skill: EARTH_SPIKE
 right-trigger: RIGHT_CLICK
 left-trigger: LEFT_CLICK
 glow: true
+# 无法破坏：法杖不会被打坏
+unbreakable: true
 custom-model-data: 0
 lore:
-  - "&7右键: 召唤一排地刺穿刺敌人"
-  - "&8地刺: {hits} 根 · 半径 {aoe} 格 · 距离 {range} 格"
-  - "&8冷却: {cooldown-right}s"
-  - "&c伤害: {damage}  &a吸血: {lifesteal}%"
-  - "&7暴击: {crit}% x{crit-multi}  穿透: {pen}%"
+  - "<dark_gray>「让大地替你说话。」"
+  - ""
+  - "<gradient:#4fe0a0:#8ef0ff><bold>▸ 地刺喷射</bold></gradient> <gray>右键"
+  - "<gray>  锁定准星所指的目标，射出一根追踪地刺"
+  - "<gray>  命中处炸裂成刺环，刺穿并掀飞范围内敌人"
+  - "<gray>  站在伤害圈里也会被顶飞"
+  - ""
+  - "<gradient:#ffe066:#ffb347><bold>▸ 雷霆召唤</bold></gradient> <gray>Shift+右键"
+  - "<gray>  同时锁定多个目标，逐个牵引天雷"
+  - "<gray>  雷光标记敌人，无处遁形"
+  - "<gray>  并留下「雷力」：下一发地刺附带雷弧"
+  - ""
+  - "<gradient:#8e9eab:#eef2f3>不可破坏 · 右键冷却 {cooldown-right}s</gradient>"
+  - "<dark_gray>伤害 <red>{damage}</red> <dark_gray>· 索敌 <aqua>{aim-range}</aqua> 格 · 作用半径 <aqua>{aoe}</aqua> 格"
 stats:
-  # ---- 伤害（单根地刺伤害 = damage × aoe-damage-ratio） ----
+  # ---- 伤害：地刺 = damage × aoe-damage-ratio，雷霆 = damage × lightning-damage-multiplier ----
   damage: 9.0
   damage-scaling: 1.2
   critical-chance: 0.15
   critical-multiplier: 1.6
   armor-penetration: 0.10
-  # 被动吸血：普攻（onHit）与地刺技能伤害都按该比例回血
+  # 被动吸血：普攻（onHit）与地刺/雷霆技能伤害都按该比例回血
   lifesteal: 0.15
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
-  cooldown: 7.0
-  # ---- 地刺形态 ----
-  hit-count: 7            # 地刺根数（1~20），均匀铺在「脚下 → 准星落点」之间
-  hit-interval-ticks: 1   # 相邻地刺破土间隔（tick，0 = 同时破土）
-  range: 9.0              # 地刺铺开的最大距离（格）
-  aim-range: 12.0         # 准星射线距离（格），决定落点最远能瞄多远
-  aoe-radius: 1.6         # 单根地刺的伤害半径（格）
-  aoe-damage-ratio: 1.0   # 单根伤害比例（1.0 = 满额；每一轮施法同一目标只吃一次）
-  knockback: 0.35         # 命中水平击退强度
-  spike-uppercut-velocity: 0.55  # 命中向上击飞速度（0 = 不击飞）
-  slow-duration-ticks: 30 # 命中减速持续（tick，0 = 不减速）
-  slow-amplifier: 0       # 减速等级：0 = 缓慢 I
-  # ---- 表现（关闭 effects 时只保留伤害判定） ----
-  spike-rise-ticks: 2     # 破土动画时长（tick）
-  spike-hold-ticks: 5     # 地刺停留时长（tick）
-  spike-fall-ticks: 4     # 缩回动画时长（tick）
-  spike-scale: 2.2        # 地刺方块显示缩放
-  particle: CRIT          # 命中粒子
-  sound: BLOCK_POINTED_DRIPSTONE_BREAK  # 破土/命中音效
+  # 地刺单次喷发对同一目标的伤害比例（每轮喷发同一目标只结算一次）
+  aoe-damage-ratio: 1.0
+  # 冷却秒数（右键与 Shift+右键共享；0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
+  cooldown: 6.0
+  # ---- 锁定 / 弹射物 ----
+  aim-range: 20.0              # 索敌 / 锁定距离（格）
+  aim-angle: 35.0              # 准星没直指目标时的锥形辅助瞄准角度（度）
+  spike-projectile-speed: 1.6  # 追踪地刺每 tick 飞行速度（格/tick）
+  range: 16.0                  # 追踪地刺最大飞行距离（格）
+  hit-count: 8                 # 落地后炸开的地刺根数（1~20）
+  hit-interval-ticks: 1        # 相邻地刺破土间隔（tick），也是多道落雷的间隔
+  aoe-radius: 3.0              # 地刺伤害 / 掀飞半径，也是落雷范围伤害半径
+  # ---- 掀飞 / 推力 ----
+  spike-uppercut-velocity: 0.9 # 向上掀飞速度（格/tick，0 = 不掀飞）
+  knockback: 0.5               # 向外推开强度（0 = 只向上）
+  # ---- 雷霆召唤 ----
+  lightning-strikes: 3         # 落雷道数（1~16），同时决定最多锁定目标数
+  lightning-damage-multiplier: 1.2  # 单道落雷伤害倍率
+  lightning-glow-ticks: 120    # 雷光标记持续（tick），同时是「雷力」加持窗口
+  # ---- 表现（effects.enabled=false 时只保留伤害与位移判定） ----
+  spike-rise-ticks: 2          # 地刺破土动画时长（tick）
+  spike-hold-ticks: 5          # 地刺停留时长（tick）
+  spike-fall-ticks: 4          # 地刺缩回动画时长（tick）
+  spike-scale: 2.2             # 地刺方块显示缩放
+  particle: CRIT               # 命中 / 弹射物拖尾粒子
+  sound: BLOCK_POINTED_DRIPSTONE_BREAK  # 破土音效（命中另配三叉戟音）
   sound-volume: 1.0
   sound-pitch: 0.8

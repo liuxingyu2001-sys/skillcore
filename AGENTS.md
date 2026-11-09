@@ -3,28 +3,31 @@
 Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放技能。SkillCore 是唯一技能来源，没有独立的技能绑定/解锁系统。
 
 - 语言/API：Java 21（`maven.compiler.release=21`），Paper API `26.2.build.129-stable`，`api-version: '1.21'`
-- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.4.jar`）
+- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.5.jar`）
 - `groupId=com.skillcore`，`artifactId=skillcore`，主类 `com.skillcore.SkillCorePlugin`
 - 代码注释、配置注释均为中文，保持中文风格
-- 已在 Paper 26.2 服务端实机验证加载（启动自动注册 13 个武器技能类 + 9 把武器 + 2 套盔甲）
+- 已在 Paper 26.2 服务端实机验证加载（基础 9 把武器 / 13 个技能实测；血月之镰为本次新增，编译通过、待重启后实机验证）
 
-## 内置内容一览（9 把武器 / 13 个武器技能 / 2 套盔甲）
+## 内置内容一览（10 把武器 / 15 个武器技能 / 2 套盔甲）
 
 | 武器 id（`skills/<id>.yml`） | 显示名 | 右键技能 | 左键技能 |
 | --- | --- | --- | --- |
 | `blade_dash` | 利刃突刺 | `BLADE_DASH` | `STRIKE` |
 | `blood_blade` | 血刃 | `LIFESTEAL_STRIKE` | — |
+| `blood_moon_scythe` | 血月之镰 | `BLOOD_MOON_THROW`（回旋锁敌投掷） | `SOUL_HARVEST`（扇形收割 / 处决） |
 | `dawnbreaker` | 破晓 | `PERCENT_STRIKE` | — |
 | `gale_lance` | 疾风刺 | `CHARGE` | — |
 | `shadow_burst` | 影袭 | `BLINK_BURST` | — |
 | `storm_warhammer` | 风暴战锤 | `STORM_HAMMER` | — |
 | `sunfire_blade` | 日炎之剑 | `SUNFIRE_BLADE` | — |
 | `thunder_hammer` | 雷霆重击 | `CONTROL_STRIKE` | `SWEEP` |
-| `earth_staff` | 地刺法杖 | `EARTH_SPIKE` | — |
+| `earth_staff` | 地刺法杖 | `EARTH_SPIKE`（右键地刺 / Shift+右键雷霆） | — |
 
 - `DASH_DAMAGE`（别名 `DASH`）与 `THORNS` 也有实现且会注册，但当前没有武器文件引用；要用就在某把武器的 `right-skill`/`left-skill` 填上
 - 同一技能实现可挂到多把武器上，差异（伤害/冷却/范围）全落在各自的 `skills/*.yml`
-- 盔甲：`sunfire_armor`（日炎之甲，`skill: SUNFIRE`）、`example_armor`（骑士战甲，纯 `set-bonus` 被动示例、不绑定技能）
+- 地刺法杖（BLAZE_ROD，不可破坏）两个技能都会**锁定目标并造成伤害**：右键锁敌射出追踪地刺，落地炸出刺环刺穿并掀飞敌人；Shift+右键同时锁定多个目标逐个落雷（雷光标记 + 范围伤害），并给下一发地刺注入「雷力」
+- 血月之镰（NETHERITE_HOE，不可破坏，`attack-damage: 7` 补偿锄头普攻）：右键「血月回旋」掷出真实 `ItemDisplay` 镰刀，锁敌限速转向 + 提前量预判，穿透最多 4 人后折返，命中烙「血月印记」（发光 + 粒子）；左键「死神收割」130° 扇形镰斩，带印记目标引爆额外伤害，残血目标追加最大生命百分比处决真实伤害；被动普攻按概率挂印记，形成「挂印 → 引爆」连招。左右技能各自独立冷却（`cooldown-right: 9` / `cooldown-left: 4`）
+
 
 ## 常用命令
 
@@ -58,13 +61,14 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - `WeaponItems` / `WeaponLore` — 物品构建、PDC 识别、lore 变量替换
   - `WeaponRegistry` / `WeaponManager` — 注册表、释放流程、生命周期清理
   - `ClassScanner` — 注解扫描（支持 class 目录与 jar）
-- `src/main/java/com/skillcore/weapon/skills/` — 内置技能实现（每个类一个 `@WeaponSkillInfo`）；`StormHammerFx` 是风暴战锤专属分阶段特效，`SunfireBladeSkill` 是日炎之剑（命中附带最大生命百分比）
+- `src/main/java/com/skillcore/weapon/skills/` — 内置技能实现（每个类一个 `@WeaponSkillInfo`）；`StormHammerFx` 是风暴战锤专属分阶段特效，`SunfireBladeSkill` 是日炎之剑（命中附带最大生命百分比）；`BloodMoonThrowSkill`（右键回旋投掷，真实 `ItemDisplay` 弹道）/ `SoulHarvestSkill`（左键扇形收割 + 处决）/ `BloodMoonScytheFx`（血月主题分镜特效）/ `BloodMoonMarks`（两个技能共享的血月印记状态，静态 map + 到期清理）
 - `src/main/java/com/skillcore/armor/` — 盔甲套装框架：`ArmorSlot`/`ArmorPiece`/`ArmorSet`/`ArmorStats`、`ArmorItems`（PDC 构建/识别）、`ArmorFactory`/`ArmorRegistry`/`ArmorManager`/`ArmorListener`、`ArmorSkill`/`ArmorContext`（盔甲技能接口）；`annotation/` 为 `@ArmorSkillInfo` 注解；`skills/` 下为盔甲技能实现（`SunfireArmorSkill` 日炎之甲）
 - `src/main/java/com/skillcore/config/` — `ConfigManager`（config.yml + skills/ + armor/ 目录加载与轮询）
 - `src/main/java/com/skillcore/dummy/TestDummyManager.java` — 测试假人模块
 - `src/main/java/com/skillcore/hook/SkillCorePlaceholders.java` — PlaceholderAPI 占位符（PAPI 未安装时自动跳过）
 - `src/main/java/com/skillcore/hook/CraftEngineHook.java` — CraftEngine 模型软依赖（反射调用）
 - `src/main/java/com/skillcore/hook/PacketEventsHook.java` — PacketEvents 软依赖（反射发送方块破坏动画数据包，地面碎裂特效）
+- `src/main/java/com/skillcore/hook/McMMOHook.java` — mcMMO 软依赖（动态注册 `McMMOPlayerNotificationEvent`：手持技能武器时取消 mcMMO 的动作栏通知，保留聊天栏消息；未装 mcMMO 空操作）
 - `src/main/java/com/skillcore/effect/` — 特效接口与工厂（`SkillEffect` / `Effects` / `DisplayEffect` 等）
 - `src/main/java/com/skillcore/utils/ParticleUtils.java` — 粒子绘制工具（点/线/环/球/立方/锥/螺旋/光束/闪电）
 - `src/main/java/com/skillcore/utils/TextUtils.java` — MiniMessage 与 `&` 颜色码混合解析（显示名/lore 用）
@@ -100,6 +104,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - 跨世界调用前先比 `World`（`Location#distance`、`getNearbyEntities`、物理连线等），否则会抛 `IllegalArgumentException`
 - 动画类特效（`Effects.expandingRing` / `orbit` / `groundCracks` / `groundShatter`）对 tick 数与半径封顶，避免配置写错刷爆调度器或卡主线程
 - 配置里的冷却、时长、持续时间统一走 `CooldownUtils`（非有限值 / `<=0` 视为无冷却，上限 24 小时）
+- 飞行类显示物（`BloodMoonThrowSkill` 的 `ItemDisplay`）必须有硬寿命（`MAX_LIFETIME_TICKS` = 200），每 tick 校验玩家在线 / 同世界 / 仍持该武器 / 显示物 `isValid`，任一异常立即回收，避免实体与定时任务残留
 
 ## 生命周期
 
@@ -107,15 +112,17 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `ArmorManager.clearAll()` 会先给在线玩家补发 `ArmorSkill.onUnequip(...)` 再 `cleanup()`，重载/禁用时 BossBar 等临时状态不会残留
 - `WeaponInputListener` 在 `PlayerQuitEvent` / `PlayerItemHeldEvent` 清理双击/按住状态
 - `CombatListener` 在退出/死亡清理吸血/反伤 buff
-- 软依赖反射缓存（`VulcanHelper` / `CraftEngineHook` / `PacketEventsHook`）在 `onDisable` 调用各自的 `reset()`，避免热重载后引用旧类加载器对象
+- 软依赖反射缓存（`VulcanHelper` / `CraftEngineHook` / `PacketEventsHook` / `McMMOHook`）在 `onDisable` 调用各自的 `reset()`（`McMMOHook` 负责注销动态事件监听），避免热重载后引用旧类加载器对象
 - `/sc cooldown` 只重载受影响的那一把武器（`WeaponManager.reloadWeapon`），不再全量 `reloadAll`，并顺带清掉该武器在所有在线玩家身上的左右键冷却记录
 - `WeaponRegistry.register` 覆盖同 id 条目时会自动 `cleanup()` 旧技能实例；`clear()` 等价于 `cleanup()`，重载/重复 id 不会泄漏 BossBar / 定时任务
 - `WeaponContext.multiHit` 的延迟段任务会登记（按玩家分组），`notifyQuit` / `cleanup()` 统一取消，避免 0 冷却连点堆叠任务、退出后仍按旧 stats 结算
+- 血月之镰的飞行显示物由 `BloodMoonThrowSkill` 统一管理：每次施法最多一个 `ItemDisplay`（tag `skillcore_scythe_throw`、`setPersistent(false)`），`cleanup()` / `onQuit()` 取消任务并回收实体；`BloodMoonMarks` 的印记 map 在 `cleanup()` 时 `clear()`，并带 2048 条目上限 + 读取时清理过期项
 
 ## 特效接口 / 粒子 / CraftEngine 模型
 
 - 特效接口：`com.skillcore.effect.SkillEffect`（函数式，`play(EffectContext)`），工厂 `Effects`：
-  - 形状：`particle/ring/ringFacing/sphere/helix/cone/beam/lineToTarget/explosion`
+  - 形状：`particle/ring/ringFacing/arcFacing/sphere/helix/cone/beam/lineToTarget/explosion`
+  - 弧形刀光：`ParticleUtils.arc` / `arcPoints`（水平弧）、`facingArc` / `facingArcPoints`（沿视线朝向的竖直弧），供镰刀/剑气类技能画不闭合的新月斩击；`Effects.arcFacing(...)` 是对应工厂方法
   - 彩色尘：`dust(Color, size, count[, spread])`
   - 闪电：`bolt`（沿朝向）/ `boltBetween` / `skyStrikes`（天雷）/ `skyStrikesDust`（彩色天雷）
   - 动画形状：`expandingRing`（扩散环）/ `groundCracks`（地面裂纹）/ `orbit`（环绕螺旋）/ `groundShatter`（地面碎裂：方块碎屑粒子 + PacketEvents 方块裂纹动画后恢复）
@@ -124,22 +131,24 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - 显示物：`display(ItemStack,...)` / `model(craftEngineModel,...)` / `modelFacing(...)`（内部 `DisplayEffect`，ItemDisplay + 平滑插值 + 自动移除）
   - 组合：`parallel/sequence/delayed/at`，或 `fx.andThen(next).delayed(ticks)`
   - 技能里用 `ctx.play(effect)` / `ctx.playAt(effect, loc)`；`WeaponContext.effectContext()` 提供位置/朝向/施法者/目标
-- 粒子工具：`ParticleUtils` 已统一走 `EffectSettings`（`config.yml` 的 `effects.*`）开关、密度、降级粒子，并对 null/NaN/无穷坐标防护；新增 `bolt/boltDust/boltPoints` 闪电折线（中点位移法）
+- 粒子工具：`ParticleUtils` 已统一走 `EffectSettings`（`config.yml` 的 `effects.*`）开关、密度、降级粒子，并对 null/NaN/无穷坐标防护；新增 `bolt/boltDust/boltPoints` 闪电折线（中点位移法），以及 `arc/arcPoints/facingArc/facingArcPoints` 弧形刀光（`facingArc*` 沿视线在竖直平面内画不闭合新月弧，镰刀/剑气技能用）
 - CraftEngine 模型：`craftengine_model`（也兼容 `craftengine-model`）配置键 → `SkillWeapon.craftEngineModel()`；`WeaponItems.create` 优先用 `CraftEngineHook.buildItem(...)` 作底物，失败降级 `material` + `custom-model-data`。`CraftEngineHook` 用反射调用 `CraftEngineItems.byId(id).buildBukkitItem()`，未装 CraftEngine 时全部返回 null/false
 
 ## 配置要点
 
-- `config.yml`：`debug`、`shared_config_dir`、`config_poll_interval`、`combat.*`（含 `pvp-blocked-worlds`）、`target-filter.*`、`input.*`（`double-shift-window-ms`/`hold-shift-delay-ms`）、`cooldown.*`、`messages.*`（`&` 颜色码）、`placeholders.*`、`effects.*`（`enabled`/`particles`/`density`/`fallback-particle`/`display.*`）、`logging.*`
+- `config.yml`：`debug`、`shared_config_dir`、`config_poll_interval`、`combat.*`（含 `pvp-blocked-worlds`）、`target-filter.*`、`input.*`（`double-shift-window-ms`/`hold-shift-delay-ms`）、`cooldown.*`（冷却中提示只有动作栏文本，**不发音效**）、`integrations.mcmmo.suppress-actionbar`、`messages.*`（`&` 颜色码）、`placeholders.*`、`effects.*`（`enabled`/`particles`/`density`/`fallback-particle`/`display.*`）、`logging.*`
 - `skills/*.yml`（一把武器一个文件，放在 jar 的 `skills/` 目录；首次运行自动复制到数据目录 `skills/`）：每把武器有 `display-name/description/material/lore/right-skill/left-skill/*-trigger/glow/custom-model-data/unbreakable/enchantments/stats`；`stats:` 只写本技能用到的键
   - 数值既可写在 `stats:` 段，也可平铺在文件顶层（`stats:` 优先）——避免「设了没反应」（顶层只回退标量数值键，`lore`/`enchantments` 等段不会写进 stats）
   - `right-trigger`/`left-trigger` 会被解析进 `SkillWeapon`，但**当前不参与判定**：左/右键与 Shift 组合由 `WeaponInputListener` 统一派发，技能是否响应只看有没有覆写对应钩子
   - **技能冷却左右键分开**：`stats.cooldown`（左右共用回退）、`stats.cooldown-left`（左键技能）、`stats.cooldown-right`（右键技能）；未单独写时左右都回退 `cooldown`。`0` = 无冷却。也可用 `/sc cooldown <weaponId> <秒> [left|right|all]` 写回文件并重载
   - `display-name`/`lore` 支持 MiniMessage（`<gradient>/<color>`）与 `&` 颜色码混合，由 `TextUtils.parse` 解析
   - `enchantments:` 为「附魔 key: 等级」映射（如 `wind_burst: 5`），通过 `Registry.ENCHANTMENT` 解析并 `addEnchant(..., true)` 绕过原版等级上限
+  - **附魔必须正常显示**：`glow: true` 用 1.20.5+ 的 `enchantment_glint_override` 组件发光，**不要**再塞「隐藏附魔 海之眷顾 I + `ItemFlag.HIDE_ENCHANTS`」——那种写法会把 `enchantments:` 配置的附魔和玩家自己附上的附魔一起藏掉（历史 bug）。`WeaponItems.applyMeta` 在重建物品时会清理旧版隐藏附魔（判据：海之眷顾 I + HIDE_ENCHANTS，钓鱼竿除外），老物品用 `/sc updatelore` 刷新一次即可恢复显示
   - 风暴战锤为无目标技能：不锁定目标也能释放（`canUse` 不要求 target），以自身为落点做 AOE；砸地会向上弹飞范围内敌人（`slam-uppercut-velocity`）并自身反冲（`slam-self-bounce`），模拟原版风爆手感
+  - `attack-damage`（`stats` 键，默认 0）：给物品写入 `Attribute.ATTACK_DAMAGE` 属性修饰符（`EquipmentSlotGroup.MAINHAND`），用于锄头 / 法杖这类原版普攻只有 1 点的底物；`WeaponItems.applyAttackDamage` 每次重建物品前会先移除同名修饰符，`/sc updatelore` 反复刷新不会叠加伤害
 - `armor/*.yml`（一个套装一个文件，放在 jar 的 `armor/` 目录；首次运行自动复制到数据目录 `armor/`）：每套有 `display-name/description/skill/helmet/chestplate/leggings/boots`（各含 `material/display-name/custom-model-data/unbreakable/craftengine_model/enchantments/lore`，四个部位可写不同的 CraftEngine 模型 ID）与 `set-bonus`（`lifesteal`/`reflect-percent`/`reflect-flat`/`damage-multiplier`/`damage-reduction`/`max-health`/`movement-speed-percent`，其余键进 `ArmorStats.custom` 供技能读取）；穿戴整套四件后被动加成 + 属性加成（最大生命/移速，脱下自动移除）+ 绑定的盔甲技能自动生效
 - `testdummy.yml`：`dummy.name/health/no-ai/silent`；本服数据目录独立，不参与共享
-- `lore` 变量由 `WeaponLore.apply` 全量替换（未列出的占位符会原样保留，不会报错）：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {on-hit-interval} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd} {cooldown-left}/{cd-left} {cooldown-right}/{cd-right} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets}`
+- `lore` 变量由 `WeaponLore.apply` 全量替换（未列出的占位符会原样保留，不会报错）：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {on-hit-interval} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd} {cooldown-left}/{cd-left} {cooldown-right}/{cd-right} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets} {attack-damage} {throw-range} {sweep-angle} {sweep-range} {execute} {execute-damage} {mark-duration}`
 
 ## 群组服共享配置
 
@@ -152,6 +161,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - PlaceholderAPI：`softdepend`，未安装时自动跳过。占位符 `%skillcore_weapon_id% / _weapon_name% / _has_weapon% / _weapon_cd% / _weapon_cd_left% / _weapon_cd_right% / _armor_set% / _armor_set_name% / _has_armor_set%`
 - CraftEngine：`softdepend`，未安装时 `craftengine_model` 降级为 `material` + `custom-model-data`
 - packetevents：`softdepend`，未安装时地面碎裂特效降级为纯方块碎屑粒子（无方块裂纹数据包）
+- mcMMO：`softdepend`，未安装时空操作。`McMMOHook` 用反射动态注册 `McMMOPlayerNotificationEvent`，**手持技能武器时取消 mcMMO 发往动作栏的通知**（右键拿工具/超技能冷却/战斗涨经验那类提示），聊天栏消息不受影响；开关 `config.yml` → `integrations.mcmmo.suppress-actionbar`（默认开）。mcMMO 2.2.x / 2.3.x 事件签名一致（`getPlayer()` / `getChatMessageType()`），类加载走 mcMMO 自己的 ClassLoader
 - 测试假人：`/sc testdummy spawn [health] | list | clear [all]`，僵尸无 AI/静音/防火/不还击，持久化到 `testdummy.yml`
 - 盔甲套装：`/sc armor give <setId> [player] | list | info <setId>` 与 `/sc armors`（列表）。已内置 `sunfire_armor`（日炎之甲）：穿戴整套后周围敌人每秒灼伤（固定 1 + 最大生命 2%）；`example_armor` 是无技能的四件套被动示例（可当模板复制）
 

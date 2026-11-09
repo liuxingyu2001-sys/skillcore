@@ -77,10 +77,6 @@ public final class SoundUtils {
         playToPlayer(player, Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.6f);
     }
 
-    public static void cooldown(Player player) {
-        playToPlayer(player, Sound.UI_BUTTON_CLICK, 0.6f, 0.5f);
-    }
-
     public static void hit(Player player) {
         playToPlayer(player, Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 1.0f);
     }
