@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code on-hit-interval}（秒，默认 0.5，0 = 每次命中都触发）。
  * <p>
  * 不覆写左右键，命中间隔静默计时（不弹冷却提示），
- * 配置文件里 {@code cooldown: 0} 避免主动空点产生冷却提示。
+ * 配置文件里 {@code cooldown-right: 0} 避免主动空点产生冷却提示。
  */
 @WeaponSkillInfo(id = "SUNFIRE_BLADE", aliases = {"SUNFIRE_SWORD"}, description = "日炎之剑：攻击附带固定伤害 + 最大生命百分比")
 public final class SunfireBladeSkill extends AbstractWeaponSkill {

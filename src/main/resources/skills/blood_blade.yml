@@ -15,8 +15,8 @@ stats:
   critical-chance: 0.15
   critical-multiplier: 1.6
   lifesteal: 0.35
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
-  cooldown: 3.0
+  # 右键技能冷却（0 = 无冷却；左右键独立计时；也可用 /sc cooldown <id> <秒> right 修改）
+  cooldown-right: 3.0
   heal: 2.0
   range: 4.5
   particle: CRIT_MAGIC

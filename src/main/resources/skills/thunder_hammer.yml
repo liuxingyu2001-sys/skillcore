@@ -17,8 +17,8 @@ stats:
   critical-multiplier: 2.0
   stun-duration-ticks: 30
   knockback: 0.6
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
-  cooldown: 6.0
+  # 右键技能冷却（0 = 无冷却；左右键独立计时，左键冷却见下面的 cooldown-left）
+  cooldown-right: 6.0
   cooldown-left: 3.0
   range: 5.5
   aoe-radius: 3.0

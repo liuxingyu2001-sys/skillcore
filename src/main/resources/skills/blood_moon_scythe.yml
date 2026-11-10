@@ -40,7 +40,6 @@ stats:
   critical-multiplier: 1.8
   armor-penetration: 0.15
   lifesteal: 0.20
-  cooldown: 6.0
   cooldown-right: 9.0
   cooldown-left: 4.0
   # ---- 物品普攻：锄头底物 + 7 = 8 点基础普攻（对齐下界合金剑） ----

@@ -23,8 +23,8 @@ stats:
   critical-multiplier: 1.8
   armor-penetration: 0.15
   lifesteal: 0.15
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
-  cooldown: 5.0
+  # 右键技能冷却（0 = 无冷却；左右键独立计时，左键冷却见下面的 cooldown-left）
+  cooldown-right: 5.0
   # 左键只是普通强击，冷却更短
   cooldown-left: 2.0
   dash-speed: 1.8

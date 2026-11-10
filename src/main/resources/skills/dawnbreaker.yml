@@ -14,8 +14,8 @@ stats:
   percent-max-health: 0.08
   percent-damage-cap: 50
   armor-penetration: 0.4
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
-  cooldown: 8.0
+  # 右键技能冷却（0 = 无冷却；左右键独立计时；也可用 /sc cooldown <id> <秒> right 修改）
+  cooldown-right: 8.0
   aim-range: 12
   particle: END_ROD
   sound: ENTITY_EVOKER_CAST_SPELL

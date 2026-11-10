@@ -32,11 +32,12 @@ target-filter:
   pvp-blocked-worlds: []
 
 # 冷却显示/提示设置
-# 注意：技能冷却时长在 skills/<id>.yml 里设置：
-#   stats.cooldown        左右键共用的默认冷却
-#   stats.cooldown-left   左键技能冷却（不写则回退 cooldown）
-#   stats.cooldown-right  右键技能冷却（不写则回退 cooldown）
-#   也可用 /sc cooldown <weaponId> <秒> [left|right|all] 快速修改（会写回文件并重载）。
+# 左右键技能冷却完全独立，时长在 skills/<id>.yml 里分别设置：
+#   stats.cooldown-right  右键技能冷却（推荐显式写）
+#   stats.cooldown-left   左键技能冷却（不写 = 0，无冷却；不会借用右键的冷却）
+#   stats.cooldown        旧版共享键，只作为「没写 cooldown-right 时」的右键回退（兼容老配置）
+#   冷却键 = weapon:<武器id>:<left|right>:<技能类型>，左右键与不同技能各自计时、互不影响。
+#   可用 /sc cooldown <weaponId> 查看当前冷却，/sc cooldown <weaponId> <秒> [left|right|all] 修改（写回文件并重载）。
 cooldown:
   action-bar: true
   boss-bar: false

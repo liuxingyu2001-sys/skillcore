@@ -108,7 +108,8 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             MessageUtils.send(sender, "&e" + w.id() + " &7- " + TextUtils.toLegacy(w.displayName())
                     + " &8| 伤害 " + MathUtils.format1(w.stats().damage())
                     + " CD右 " + MathUtils.format1(w.stats().cooldownRight())
-                    + (w.leftSkillType() != null && Double.compare(w.stats().cooldownLeft(), w.stats().cooldownRight()) != 0
+                    // 左右键冷却独立：有左键技能就单独列出来，数值相同也照样显示
+                    + (w.leftSkillType() != null
                         ? "/左 " + MathUtils.format1(w.stats().cooldownLeft()) : "")
                     + "s | R:" + w.rightSkillType()
                     + (w.leftSkillType() != null ? " L:" + w.leftSkillType() : ""));
@@ -136,7 +137,8 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         MessageUtils.send(sender, "&7穿透: &f" + MathUtils.format1(s.armorPenetration() * 100) + "%"
                 + "  &7吸血: &f" + MathUtils.format1(s.lifesteal() * 100) + "%");
         String cdInfo = "&7冷却: &f右 " + MathUtils.format1(s.cooldownRight()) + "s";
-        if (w.leftSkillType() != null && Double.compare(s.cooldownLeft(), s.cooldownRight()) != 0) {
+        if (w.leftSkillType() != null) {
+            // 左右键冷却独立配置，有左键技能就总是显示左键冷却
             cdInfo += " &7/ 左 &f" + MathUtils.format1(s.cooldownLeft()) + "s";
         }
         MessageUtils.send(sender, cdInfo + "  &7范围: &f" + MathUtils.format1(s.range()));
@@ -184,21 +186,38 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /sc cooldown &lt;weaponId&gt; &lt;秒&gt; [left|right|all] — 设置技能冷却（写回 skills/&lt;id&gt;.yml 并重载）。
+     * /sc cooldown &lt;weaponId&gt; [秒] [left|right|all] — 设置 / 查看技能冷却
+     * （写回 skills/&lt;id&gt;.yml 并只重载这一把武器）。
      * <p>
-     * 不带第三参数默认同时写 {@code cooldown} / {@code cooldown-left} / {@code cooldown-right}；
-     * 指定 {@code left} 或 {@code right} 只改对应键位技能的冷却，实现左右键冷却分开。
+     * 不带秒数 = 查看自己身上这把武器当前的冷却记录（左右键分别列出，验证是否独立计时）。
+     * 带秒数时 {@code left} / {@code right} 只改对应键位技能；{@code all}（默认）把左右键
+     * <b>各自</b>写成同一个显式值，不再写旧版共享键 {@code cooldown}。
      */
     private void handleCooldown(CommandSender sender, String[] args, String prefix) {
         if (!sender.hasPermission("skillcore.admin")) {
             MessageUtils.sendPrefixed(sender, prefix, "&c无权限.");
             return;
         }
-        if (args.length < 3) {
-            MessageUtils.sendPrefixed(sender, prefix, "&e/sc cooldown <weaponId> <秒> [left|right|all] &7(0 = 无冷却)");
+        if (args.length < 2) {
+            MessageUtils.sendPrefixed(sender, prefix,
+                    "&e/sc cooldown <weaponId> [秒] [left|right|all] &7(不写秒数 = 查看当前冷却；0 = 无冷却)");
             return;
         }
         String weaponId = args[1];
+        if (plugin.getWeaponRegistry().get(weaponId) == null
+                && plugin.getConfigManager().getSkillFile(weaponId) == null) {
+            MessageUtils.sendPrefixed(sender, prefix, "&c未找到技能: &e" + weaponId);
+            return;
+        }
+        // 不带秒数：查看当前冷却（左右键各自一条记录）
+        if (args.length < 3) {
+            if (!(sender instanceof Player player)) {
+                MessageUtils.sendPrefixed(sender, prefix, "&c只能由玩家查看自己的冷却，请在游戏内执行.");
+                return;
+            }
+            printCooldownStatus(player, weaponId, prefix);
+            return;
+        }
         double seconds;
         try {
             seconds = Double.parseDouble(args[2]);
@@ -210,20 +229,14 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
             MessageUtils.sendPrefixed(sender, prefix, "&c秒数必须是 >= 0 的数字.");
             return;
         }
-        if (plugin.getWeaponRegistry().get(weaponId) == null
-                && plugin.getConfigManager().getSkillFile(weaponId) == null) {
-            MessageUtils.sendPrefixed(sender, prefix, "&c未找到技能: &e" + weaponId);
-            return;
-        }
         String side = args.length >= 4 ? args[3].toLowerCase(Locale.ROOT) : "all";
         boolean ok;
         switch (side) {
             case "left" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
             case "right" -> ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
             case "all" -> {
-                // all：cooldown 作为回退，同时写左右两个键（逐个写，任一步失败才算失败）
-                ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown", seconds);
-                ok &= plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
+                // 左右键各写一个显式值：不再是「一个 cooldown 两边共用」，而是两条独立配置
+                ok = plugin.getConfigManager().setSkillStat(weaponId, "cooldown-left", seconds);
                 ok &= plugin.getConfigManager().setSkillStat(weaponId, "cooldown-right", seconds);
             }
             default -> {
@@ -238,10 +251,32 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         }
         // 只重载这一把武器：全量 reloadAll 会清掉所有技能状态并重建在线玩家的盔甲加成
         boolean reloaded = plugin.getWeaponManager().reloadWeapon(weaponId);
-        String sideText = side.equals("left") ? "左键" : side.equals("right") ? "右键" : "全部";
+        String sideText = side.equals("left") ? "左键" : side.equals("right") ? "右键" : "左右键";
         MessageUtils.sendPrefixed(sender, prefix,
-                "&a已将 &e" + weaponId + " &a的" + sideText + "冷却设为 &f" + MathUtils.format1(seconds) + "s &7("
+                "&a已将 &e" + weaponId + " &a的" + sideText + "冷却分别设为 &f" + MathUtils.format1(seconds) + "s &7("
                         + (reloaded ? "已写回并生效" : "已写回，重载生效") + ")");
+    }
+
+    /** 打印玩家在某把武器上当前的冷却记录（左右键独立计时的直观验证）。 */
+    private void printCooldownStatus(Player player, String weaponId, String prefix) {
+        var entry = plugin.getWeaponRegistry().getEntry(weaponId).orElse(null);
+        var stats = entry == null ? null : entry.weapon().stats();
+        MessageUtils.sendPrefixed(player, prefix,
+                "&6===== " + weaponId + " 冷却状态 =====");
+        MessageUtils.send(player, "&7配置: &f右键 " + (stats == null ? "?" : MathUtils.format1(stats.cooldownRight()) + "s")
+                + " &7/ &f左键 " + (stats == null ? "?" : MathUtils.format1(stats.cooldownLeft()) + "s"));
+        java.util.Map<String, Double> snapshot = plugin.getWeaponManager().cooldownSnapshot(player, weaponId);
+        if (snapshot.isEmpty()) {
+            MessageUtils.send(player, "&a当前没有冷却记录（左右键都就绪）.");
+            return;
+        }
+        for (java.util.Map.Entry<String, Double> e : snapshot.entrySet()) {
+            String[] parts = e.getKey().split(":", 2);
+            String side = parts.length > 0 && "left".equals(parts[0]) ? "&e左键" : "&c右键";
+            String skill = parts.length > 1 ? parts[1] : "?";
+            MessageUtils.send(player, side + " &7技能 &f" + skill + " &7剩余 &f"
+                    + MathUtils.format1(e.getValue()) + "s");
+        }
     }
 
     /**
@@ -410,7 +445,8 @@ public final class SkillCoreCommand implements CommandExecutor, TabCompleter {
         MessageUtils.send(sender, "&e/sc weapons &7- 武器列表");
         MessageUtils.send(sender, "&e/sc info <weaponId> &7- 武器详情");
         MessageUtils.send(sender, "&e/sc updatelore <weaponId> [player|all] &7- 刷新 lore");
-        MessageUtils.send(sender, "&e/sc cooldown <weaponId> <秒> [left|right|all] &7- 设置技能冷却");
+        MessageUtils.send(sender, "&e/sc cooldown <weaponId> [秒] [left|right|all] &7- 查看当前冷却 / 设置冷却");
+        MessageUtils.send(sender, "&7  左右键冷却完全独立：left/right 只改对应键位，不写默认两个都写");
         MessageUtils.send(sender, "&e/sc armor give <setId> [player] &7- 发放整套盔甲");
         MessageUtils.send(sender, "&e/sc armors &7- 盔甲套装列表");
         MessageUtils.send(sender, "&e/sc testdummy spawn [health] &7- 生成测试假人");

@@ -3,7 +3,7 @@
 Minecraft Paper 插件：技能与武器绑定，手持对应武器才能释放技能。SkillCore 是唯一技能来源，没有独立的技能绑定/解锁系统。
 
 - 语言/API：Java 21（`maven.compiler.release=21`），Paper API `26.2.build.129-stable`，`api-version: '1.21'`
-- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.5.jar`）
+- 构建：Maven，产物 `target/SkillCore-${project.version}.jar`（当前 `SkillCore-1.0.6.jar`）
 - `groupId=com.skillcore`，`artifactId=skillcore`，主类 `com.skillcore.SkillCorePlugin`
 - 代码注释、配置注释均为中文，保持中文风格
 - 已在 Paper 26.2 服务端实机验证加载（基础 9 把武器 / 13 个技能实测；血月之镰为本次新增，编译通过、待重启后实机验证）
@@ -48,6 +48,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `WeaponManager.triggerHeld`：解析左右技能 → `supportsTrigger` 检查（**所有触发都要检查**：技能没覆写对应钩子就不触发、不进冷却、也不取消事件；双击/按住/松开/左右键都算）→ `cast`
   - 纯被动技能（例如只实现 `onHit` 的日炎之剑）绑在 `right-skill` 上时，右键点击不会被吞掉（开箱/开门/吃食物照常）
 - `WeaponManager.cast`（真实顺序）：冷却检查（`CooldownUtils` 未过期直接返回，**不做射线/不构造 ctx**）→ 构造 `WeaponContext`（一次 `AimUtils.raycastEntity` 复用于瞄准点）→ `skill.canUse` → `dispatch` 到对应钩子 → 启动冷却（松开 Shift 不启动；左键走 `cooldown-left`，其余走 `cooldown-right`）
+  - 冷却键 `weapon:<武器id>:<left|right>:<技能类型>`，**左右键 / 不同技能各自计时互不影响**；冷却提示文案带「左键技能 / 右键技能」，一眼能看出是谁在冷却
 - 冷却绕过默认关闭：需 `config.yml` 的 `cooldown.bypass-permission: true` **且**玩家有 `skillcore.bypass.cooldown`（OP 不自动免疫冷却）
 - `WeaponContext` 是写技能的主入口，封装伤害（吃暴击/穿透/百分比，统一走 `SkillDamageUtils`）、吸血、位移、击退、控制、粒子/音效，全部从 `ctx.stats()` 读数值
 - `CombatListener` 处理吸血/反伤等战斗事件，并派发 `onHit`（普通近战命中，跳过技能伤害）/ `onKill`（击杀）/ `onDamaged`（受击反伤）回调到手持武器技能
@@ -113,7 +114,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `WeaponInputListener` 在 `PlayerQuitEvent` / `PlayerItemHeldEvent` 清理双击/按住状态
 - `CombatListener` 在退出/死亡清理吸血/反伤 buff
 - 软依赖反射缓存（`VulcanHelper` / `CraftEngineHook` / `PacketEventsHook` / `McMMOHook`）在 `onDisable` 调用各自的 `reset()`（`McMMOHook` 负责注销动态事件监听），避免热重载后引用旧类加载器对象
-- `/sc cooldown` 只重载受影响的那一把武器（`WeaponManager.reloadWeapon`），不再全量 `reloadAll`，并顺带清掉该武器在所有在线玩家身上的左右键冷却记录
+- `/sc cooldown` 只重载受影响的那一把武器（`WeaponManager.reloadWeapon`），不再全量 `reloadAll`，并顺带清掉该武器在所有在线玩家身上的全部冷却记录（按 `weapon:<id>:` 前缀清左右键）
 - `WeaponRegistry.register` 覆盖同 id 条目时会自动 `cleanup()` 旧技能实例；`clear()` 等价于 `cleanup()`，重载/重复 id 不会泄漏 BossBar / 定时任务
 - `WeaponContext.multiHit` 的延迟段任务会登记（按玩家分组），`notifyQuit` / `cleanup()` 统一取消，避免 0 冷却连点堆叠任务、退出后仍按旧 stats 结算
 - 血月之镰的飞行显示物由 `BloodMoonThrowSkill` 统一管理：每次施法最多一个 `ItemDisplay`（tag `skillcore_scythe_throw`、`setPersistent(false)`），`cleanup()` / `onQuit()` 取消任务并回收实体；`BloodMoonMarks` 的印记 map 在 `cleanup()` 时 `clear()`，并带 2048 条目上限 + 读取时清理过期项
@@ -140,7 +141,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - `skills/*.yml`（一把武器一个文件，放在 jar 的 `skills/` 目录；首次运行自动复制到数据目录 `skills/`）：每把武器有 `display-name/description/material/lore/right-skill/left-skill/*-trigger/glow/custom-model-data/unbreakable/enchantments/stats`；`stats:` 只写本技能用到的键
   - 数值既可写在 `stats:` 段，也可平铺在文件顶层（`stats:` 优先）——避免「设了没反应」（顶层只回退标量数值键，`lore`/`enchantments` 等段不会写进 stats）
   - `right-trigger`/`left-trigger` 会被解析进 `SkillWeapon`，但**当前不参与判定**：左/右键与 Shift 组合由 `WeaponInputListener` 统一派发，技能是否响应只看有没有覆写对应钩子
-  - **技能冷却左右键分开**：`stats.cooldown`（左右共用回退）、`stats.cooldown-left`（左键技能）、`stats.cooldown-right`（右键技能）；未单独写时左右都回退 `cooldown`。`0` = 无冷却。也可用 `/sc cooldown <weaponId> <秒> [left|right|all]` 写回文件并重载
+  - **技能冷却左右键完全独立**：`stats.cooldown-left`（左键技能，未写 = 0 / 无冷却）、`stats.cooldown-right`（右键技能，推荐显式写）；`stats.cooldown` 只是旧版共享键，仅在没写 `cooldown-right` 时作为右键回退（兼容老配置），**左键不再回退它**。`0` = 无冷却。可用 `/sc cooldown <weaponId>` 查看自己当前冷却，`/sc cooldown <weaponId> <秒> [left|right|all]` 修改（写回文件并重载，`all`/不写 = 左右键各写一个显式值）
   - `display-name`/`lore` 支持 MiniMessage（`<gradient>/<color>`）与 `&` 颜色码混合，由 `TextUtils.parse` 解析
   - `enchantments:` 为「附魔 key: 等级」映射（如 `wind_burst: 5`），通过 `Registry.ENCHANTMENT` 解析并 `addEnchant(..., true)` 绕过原版等级上限
   - **附魔必须正常显示**：`glow: true` 用 1.20.5+ 的 `enchantment_glint_override` 组件发光，**不要**再塞「隐藏附魔 海之眷顾 I + `ItemFlag.HIDE_ENCHANTS`」——那种写法会把 `enchantments:` 配置的附魔和玩家自己附上的附魔一起藏掉（历史 bug）。`WeaponItems.applyMeta` 在重建物品时会清理旧版隐藏附魔（判据：海之眷顾 I + HIDE_ENCHANTS，钓鱼竿除外），老物品用 `/sc updatelore` 刷新一次即可恢复显示
@@ -148,7 +149,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
   - `attack-damage`（`stats` 键，默认 0）：给物品写入 `Attribute.ATTACK_DAMAGE` 属性修饰符（`EquipmentSlotGroup.MAINHAND`），用于锄头 / 法杖这类原版普攻只有 1 点的底物；`WeaponItems.applyAttackDamage` 每次重建物品前会先移除同名修饰符，`/sc updatelore` 反复刷新不会叠加伤害
 - `armor/*.yml`（一个套装一个文件，放在 jar 的 `armor/` 目录；首次运行自动复制到数据目录 `armor/`）：每套有 `display-name/description/skill/helmet/chestplate/leggings/boots`（各含 `material/display-name/custom-model-data/unbreakable/craftengine_model/enchantments/lore`，四个部位可写不同的 CraftEngine 模型 ID）与 `set-bonus`（`lifesteal`/`reflect-percent`/`reflect-flat`/`damage-multiplier`/`damage-reduction`/`max-health`/`movement-speed-percent`，其余键进 `ArmorStats.custom` 供技能读取）；穿戴整套四件后被动加成 + 属性加成（最大生命/移速，脱下自动移除）+ 绑定的盔甲技能自动生效
 - `testdummy.yml`：`dummy.name/health/no-ai/silent`；本服数据目录独立，不参与共享
-- `lore` 变量由 `WeaponLore.apply` 全量替换（未列出的占位符会原样保留，不会报错）：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {on-hit-interval} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd} {cooldown-left}/{cd-left} {cooldown-right}/{cd-right} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets} {attack-damage} {throw-range} {sweep-angle} {sweep-range} {execute} {execute-damage} {mark-duration}`
+- `lore` 变量由 `WeaponLore.apply` 全量替换（未列出的占位符会原样保留，不会报错）：`{id} {display} {damage} {scaling} {crit}/{crit-chance} {crit-multi} {pen}/{armor-penetration} {attack-speed} {percent-max} {percent-current} {percent-missing} {on-hit-interval} {lifesteal} {reflect} {reflect-flat} {cooldown}/{cd}`（= 右键技能冷却）`{cooldown-left}/{cd-left} {cooldown-right}/{cd-right} {dash-speed} {dash-distance} {blink} {knockback} {range} {aim-range} {aoe}/{aoe-radius} {aoe-ratio} {slow-ticks} {stun-ticks} {root-ticks} {heal} {heal-percent} {shield} {dr} {hits} {max-targets} {attack-damage} {throw-range} {sweep-angle} {sweep-range} {execute} {execute-damage} {mark-duration}`
 
 ## 群组服共享配置
 
@@ -179,7 +180,7 @@ mvn clean package                 # 编译打包（依赖 paper-api + placeholde
 - 冷却记录：玩家退出即 `CooldownUtils.clearAll`，另有每分钟清理过期条目；冷却提示按 `prompt-interval-ms` 节流
 - 特效统一走 `EffectSettings` 开关/密度，粒子 null/NaN 防护；`ParticleUtils.line` / `boltPoints` 对折线点数封顶（1024），避免一次连线画出上万粒子
 - `TextUtils` 复用一个 `§` 序列化器实例，热路径（lore 刷新 / 命令输出）不再每次重建 `LegacyComponentSerializer`
-- 冷却键统一 `Locale.ROOT` 小写（`weapon:<id>:left|right`），`/sc cooldown` 的武器 id 大小写不一致也能命中同一条记录
+- 冷却键统一 `Locale.ROOT` 小写（`weapon:<id>:<left|right>:<技能类型>`，如 `weapon:blood_moon_scythe:left:soul_harvest`），左右键 / 不同技能各自一条记录；`/sc cooldown` 的武器 id 大小写不一致也能命中同一条记录；清理按前缀 `weapon:<id>:` 整把武器一起清
 
 ## 遗留代码清理（已完成）
 

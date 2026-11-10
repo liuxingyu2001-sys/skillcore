@@ -94,11 +94,12 @@ public final class WeaponManager {
         boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
         boolean sneak = trigger.isShift();
         boolean bypass = bypassCooldown(player);
-        String cdKey = cooldownKey(weapon.id(), trigger);
+        // 冷却键 = 武器 + 键位 + 技能类型：左右键技能、不同技能之间都互不影响
+        String cdKey = cooldownKey(weapon.id(), skill, leftClick);
 
         // 1. 先查冷却：冷却中直接返回，不做射线检测/上下文构造（性能优化）
         if (!bypass && CooldownUtils.isOnCooldown(player.getUniqueId(), cdKey)) {
-            promptCooldown(player, cdKey);
+            promptCooldown(player, cdKey, leftClick);
             return true;
         }
 
@@ -126,7 +127,7 @@ public final class WeaponManager {
         }
 
         // 4. 冷却启动（松开 Shift 不启动冷却）
-        // 左键技能走 cooldown-left，右键/双击/按住/松开走 cooldown-right，未配置时回退 cooldown
+        // 左键技能走 cooldown-left，右键/双击/按住/松开走 cooldown-right，未配置时各自使用独立默认值
         if (startsCooldown(trigger) && !bypass) {
             double cd = cooldownFor(weapon.stats(), trigger);
             if (cd > 0) {
@@ -137,7 +138,8 @@ public final class WeaponManager {
         if (debug) {
             com.skillcore.SkillCorePlugin.getInstance().getLogger().info(
                     player.getName() + " used weapon " + weapon.id()
-                            + " skill=" + skill.getType() + " trigger=" + trigger);
+                            + " skill=" + skill.getType() + " trigger=" + trigger
+                            + " cdKey=" + cdKey + " cd=" + cooldownFor(weapon.stats(), trigger));
         }
         return true;
     }
@@ -215,20 +217,40 @@ public final class WeaponManager {
         });
     }
 
-    private String cooldownKey(String weaponId, SkillTrigger trigger) {
-        // 按“技能侧”而不是具体触发键分组：Shift+左键与左键是同一个技能，
-        // 必须共享冷却，否则可以用 Shift 组合绕过冷却连续释放。
-        boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
+    /**
+     * 冷却键：{@code weapon:<武器id>:<left|right>:<技能类型>}。
+     * <p>
+     * 键里同时带「键位」与「技能类型」，两个维度都必须独立：
+     * <ul>
+     *   <li><b>左右键互不影响</b>：左键技能的冷却不会挡住右键技能，反之亦然；</li>
+     *   <li>同一键位下的不同技能互不影响（例如右键技能与 Shift+右键的另一个技能）；</li>
+     *   <li>同一技能的不同触发方式（Shift+左键 / 左键）仍然是同一条记录，
+     *       避免用 Shift 组合绕过冷却连续释放。</li>
+     * </ul>
+     */
+    private static String cooldownKey(String weaponId, WeaponSkill skill, boolean leftClick) {
         String id = weaponId == null ? "" : weaponId.trim().toLowerCase(java.util.Locale.ROOT);
-        return "weapon:" + id + (leftClick ? ":left" : ":right");
+        String side = leftClick ? "left" : "right";
+        String type = skill == null ? null : skill.getType();
+        if (type == null || type.isBlank()) {
+            type = side;
+        }
+        return "weapon:" + id + ":" + side + ":" + type.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** 一把武器全部冷却键的前缀（清理 / 展示用）。 */
+    private static String cooldownPrefix(String weaponId) {
+        String id = weaponId == null ? "" : weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        return "weapon:" + id + ":";
     }
 
     /**
      * 按触发键取对应技能的冷却秒数。
      * <p>
      * 左键（含 Shift+左键）走 {@code cooldown-left}，其余触发
-     * （右键 / Shift+右键 / 双击 / 按住 / 松开）走 {@code cooldown-right}；
-     * 未单独配置时回退到统一 {@code cooldown}。
+     * （右键 / Shift+右键 / 双击 / 按住 / 松开）走 {@code cooldown-right}。
+     * <b>左右键完全独立</b>：只有右键会回退到旧版共享键 {@code cooldown}（兼容老配置），
+     * 左键未写 {@code cooldown-left} 就是 0 秒（无冷却），不会再借用右键的冷却值。
      */
     private double cooldownFor(WeaponStats stats, SkillTrigger trigger) {
         boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
@@ -265,10 +287,10 @@ public final class WeaponManager {
      * 冷却提示（纯动作栏文本，不发音效），按 {@code cooldown.prompt-interval-ms} 节流，
      * 避免冷却中狂按导致提示刷屏。
      * <p>
-     * 右键因冷却失败时不再播放 UI 点击音：反复「咔哒」很吵，
-     * 还会和技能音效/战斗音效叠在一起。
+     * 文案里带上「左键 / 右键技能」，让玩家一眼看出是哪个技能在冷却
+     * （两个技能各自计时，不会互相顶掉）。
      */
-    private void promptCooldown(Player player, String cdKey) {
+    private void promptCooldown(Player player, String cdKey, boolean leftClick) {
         long now = System.currentTimeMillis();
         Long last = lastCooldownPrompt.get(player.getUniqueId());
         if (last != null && now - last < promptIntervalMs()) {
@@ -276,8 +298,8 @@ public final class WeaponManager {
         }
         lastCooldownPrompt.put(player.getUniqueId(), now);
         double remain = CooldownUtils.getRemaining(player.getUniqueId(), cdKey);
-        MessageUtils.sendActionBar(player, "&c冷却中 &f"
-                + String.format(java.util.Locale.ROOT, "%.1f", remain) + "s");
+        MessageUtils.sendActionBar(player, (leftClick ? "&c左键技能冷却中 " : "&c右键技能冷却中 ")
+                + "&f" + String.format(java.util.Locale.ROOT, "%.1f", remain) + "s");
     }
 
     private int promptIntervalMs() {
@@ -310,12 +332,27 @@ public final class WeaponManager {
     }
 
     public double getCooldownRemaining(Player player, String weaponId, SkillTrigger trigger) {
-        if (player == null) return 0.0;
-        return CooldownUtils.getRemaining(player.getUniqueId(), cooldownKey(weaponId, trigger));
+        if (player == null || trigger == null) return 0.0;
+        boolean leftClick = trigger == SkillTrigger.LEFT_CLICK || trigger == SkillTrigger.SHIFT_LEFT_CLICK;
+        WeaponRegistry.Entry entry = registry.getEntry(weaponId).orElse(null);
+        if (entry == null) return 0.0;
+        WeaponSkill skill = entry.resolve(leftClick);
+        if (skill == null) return 0.0;
+        return CooldownUtils.getRemaining(player.getUniqueId(), cooldownKey(weaponId, skill, leftClick));
     }
 
     /**
-     * 清除指定武器左右两侧的冷却（玩家为 null 时忽略）。
+     * 当前玩家在某把武器上的全部冷却快照：子键（如 {@code right:blood_moon_throw}）→ 剩余秒。
+     * <p>
+     * 给 {@code /sc cooldown <武器id>} 的「查看当前冷却」用，可以直接看到左右键是两条独立记录。
+     */
+    public Map<String, Double> cooldownSnapshot(Player player, String weaponId) {
+        if (player == null) return Map.of();
+        return CooldownUtils.snapshot(player.getUniqueId(), cooldownPrefix(weaponId));
+    }
+
+    /**
+     * 清除指定武器左右两侧的全部冷却（玩家为 null 时忽略；武器 id 为空则清空该玩家所有冷却）。
      */
     public void clearCooldown(Player player, String weaponId) {
         if (player == null) return;
@@ -324,8 +361,8 @@ public final class WeaponManager {
             CooldownUtils.clearAll(player.getUniqueId());
             return;
         }
-        CooldownUtils.clear(player.getUniqueId(), "weapon:" + id + ":left");
-        CooldownUtils.clear(player.getUniqueId(), "weapon:" + id + ":right");
+        // 一把武器下可能有多条记录（左右键 × 技能类型），按前缀清干净
+        CooldownUtils.clearByPrefix(player.getUniqueId(), cooldownPrefix(id));
     }
 
     /**
@@ -360,13 +397,12 @@ public final class WeaponManager {
         }
     }
 
-    /** 清除所有在线玩家在这把武器上的左右键冷却记录。 */
+    /** 清除所有在线玩家在这把武器上的全部冷却记录（左右键 × 技能类型）。 */
     private void clearCooldownEverywhere(String weaponId) {
         if (weaponId == null || weaponId.isEmpty()) return;
-        String id = weaponId.trim().toLowerCase(java.util.Locale.ROOT);
+        String prefix = cooldownPrefix(weaponId);
         for (Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
-            CooldownUtils.clear(p.getUniqueId(), "weapon:" + id + ":left");
-            CooldownUtils.clear(p.getUniqueId(), "weapon:" + id + ":right");
+            CooldownUtils.clearByPrefix(p.getUniqueId(), prefix);
         }
     }
 

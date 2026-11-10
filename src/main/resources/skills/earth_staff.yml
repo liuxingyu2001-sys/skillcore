@@ -41,8 +41,8 @@ stats:
   lifesteal: 0.15
   # 地刺单次喷发对同一目标的伤害比例（每轮喷发同一目标只结算一次）
   aoe-damage-ratio: 1.0
-  # 冷却秒数（右键与 Shift+右键共享；0 = 无冷却；也可用 /sc cooldown <id> <秒> [left|right|all] 修改）
-  cooldown: 6.0
+  # 右键技能冷却（地刺与 Shift+右键雷霆是同一个技能，共用这一条；0 = 无冷却）
+  cooldown-right: 6.0
   # ---- 锁定 / 弹射物 ----
   aim-range: 20.0              # 索敌 / 锁定距离（格）
   aim-angle: 35.0              # 准星没直指目标时的锥形辅助瞄准角度（度）

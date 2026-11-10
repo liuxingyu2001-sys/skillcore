@@ -7,8 +7,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 冷却记录工具 — 按「玩家 + 冷却键」记录到期时间。
  * <p>
- * 冷却键由 {@code WeaponManager} 生成（如 {@code weapon:blade_dash:right}），
- * 因此同一把武器的左右键技能各自独立计时。
+ * 冷却键由 {@code WeaponManager} 生成，格式
+ * {@code weapon:<武器id>:<left|right>:<技能类型>}，
+ * 例如 {@code weapon:blood_moon_scythe:right:blood_moon_throw} 与
+ * {@code weapon:blood_moon_scythe:left:soul_harvest}。
+ * 键里同时带上了「按哪一键」与「哪个技能」，因此同一把武器的左右键技能
+ * 各自独立计时，任何一个技能进入冷却都不会影响另一个。
  */
 public final class CooldownUtils {
 
@@ -96,6 +100,48 @@ public final class CooldownUtils {
         }
         String prefix = playerId + ":";
         COOLDOWNS.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
+    /**
+     * 按冷却键前缀清除（例如一把武器左右键的全部技能：{@code weapon:blade_dash:}）。
+     * <p>
+     * 冷却键从「按左右键位」改成「键位 + 技能类型」后，一把武器下面可能有多条记录，
+     * 想清干净必须按前缀匹配，不能再逐条写死 {@code :left} / {@code :right}。
+     */
+    public static void clearByPrefix(UUID playerId, String keyPrefix) {
+        if (playerId == null || keyPrefix == null || keyPrefix.isBlank()) {
+            return;
+        }
+        String full = playerId + ":" + keyPrefix;
+        COOLDOWNS.keySet().removeIf(k -> k.startsWith(full));
+    }
+
+    /**
+     * 某个前缀下的冷却快照（去掉 {@code 玩家UUID:} 前缀后的子键 -> 剩余秒），按剩余时间降序。
+     * <p>
+     * 给 {@code /sc cooldown <武器>} 这类「看当前冷却」的展示用，顺带清理已过期记录。
+     */
+    public static Map<String, Double> snapshot(UUID playerId, String keyPrefix) {
+        Map<String, Double> out = new java.util.LinkedHashMap<>();
+        if (playerId == null || keyPrefix == null || keyPrefix.isBlank()) {
+            return out;
+        }
+        String full = playerId + ":" + keyPrefix;
+        long now = System.currentTimeMillis();
+        java.util.List<Map.Entry<String, Long>> entries = new java.util.ArrayList<>();
+        for (Map.Entry<String, Long> e : COOLDOWNS.entrySet()) {
+            if (!e.getKey().startsWith(full)) continue;
+            if (e.getValue() <= now) {
+                COOLDOWNS.remove(e.getKey(), e.getValue());
+                continue;
+            }
+            entries.add(e);
+        }
+        entries.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        for (Map.Entry<String, Long> e : entries) {
+            out.put(e.getKey().substring(full.length()), (e.getValue() - now) / 1000.0);
+        }
+        return out;
     }
 
     /** 清空所有冷却记录（插件禁用时调用，避免热重载残留）。 */

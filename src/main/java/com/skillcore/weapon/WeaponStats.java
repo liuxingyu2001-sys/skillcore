@@ -35,10 +35,11 @@ public final class WeaponStats {
     private int reflectDurationTicks = 200;
 
     // ---- 冷却 / 消耗 ----
+    /** 旧版共享冷却键：只在没写 {@code cooldown-right} 时作为右键技能的回退值。 */
     private double cooldown = 1.0;
-    /** 左键技能冷却（-1 = 未设置，回退 cooldown）。 */
+    /** 左键技能冷却（-1 = 未设置 = 0 秒，不回退 cooldown）。 */
     private double cooldownLeft = -1.0;
-    /** 右键技能冷却（-1 = 未设置，回退 cooldown）。 */
+    /** 右键技能冷却（-1 = 未设置，回退 cooldown 兼容老配置）。 */
     private double cooldownRight = -1.0;
     private double manaCost = 0.0;
     private double staminaCost = 0.0;
@@ -242,9 +243,14 @@ public final class WeaponStats {
     public int reflectDurationTicks() { return reflectDurationTicks; }
 
     public double cooldown() { return cooldown; }
-    /** 左键技能冷却；未单独配置时回退 {@link #cooldown()}。 */
-    public double cooldownLeft() { return cooldownLeft >= 0 ? cooldownLeft : cooldown; }
-    /** 右键技能冷却；未单独配置时回退 {@link #cooldown()}。 */
+    /**
+     * 左键技能冷却；未写 {@code cooldown-left} 时就是 0（无冷却）。
+     * <p>
+     * <b>不再回退 {@link #cooldown()}</b>：左右键冷却必须完全独立，左键技能不能因为没配置
+     * 就借用右键技能的冷却值（旧行为会让「左键 4 秒 / 右键 9 秒」这类配置看起来像共用冷却）。
+     */
+    public double cooldownLeft() { return cooldownLeft >= 0 ? cooldownLeft : 0.0; }
+    /** 右键技能冷却；未单独配置时回退旧版共享键 {@link #cooldown()}（兼容老配置）。 */
     public double cooldownRight() { return cooldownRight >= 0 ? cooldownRight : cooldown; }
     public double onHitIntervalSeconds() { return onHitIntervalSeconds; }
     public double manaCost() { return manaCost; }

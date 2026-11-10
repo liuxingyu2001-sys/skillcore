@@ -49,9 +49,9 @@ public final class WeaponLore {
                 .replace("{reflect}", fmt(s.reflectPercent() * 100))
                 .replace("{reflect-flat}", fmt(s.reflectFlat()))
 
-                // 冷却 / 消耗
-                .replace("{cooldown}", fmt(s.cooldown()))
-                .replace("{cd}", fmt(s.cooldown()))
+                // 冷却 / 消耗（{cooldown} = 右键技能冷却，左右键独立；左键请用 {cooldown-left}）
+                .replace("{cooldown}", fmt(s.cooldownRight()))
+                .replace("{cd}", fmt(s.cooldownRight()))
                 .replace("{cooldown-left}", fmt(s.cooldownLeft()))
                 .replace("{cd-left}", fmt(s.cooldownLeft()))
                 .replace("{cooldown-right}", fmt(s.cooldownRight()))

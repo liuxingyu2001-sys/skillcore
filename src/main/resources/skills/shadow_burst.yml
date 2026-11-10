@@ -14,7 +14,7 @@ stats:
   blink-distance: 8
   aoe-radius: 3.5
   aoe-damage-ratio: 0.8
-  # 冷却秒数（0 = 无冷却；也可用 /sc cooldown <id> <秒> 修改）
-  cooldown: 10.0
+  # 右键技能冷却（0 = 无冷却；左右键独立计时；也可用 /sc cooldown <id> <秒> right 修改）
+  cooldown-right: 10.0
   particle: PORTAL
   sound: ENTITY_ENDERMAN_TELEPORT

@@ -25,6 +25,6 @@ stats:
   # 命中附带间隔（秒，0 = 每次命中都触发）
   on-hit-interval: 0.5
   # 被动技能：无主动冷却，不弹冷却提示
-  cooldown: 0
+  cooldown-right: 0
   particle: FLAME
   sound: ENTITY_PLAYER_ATTACK_CRIT
